@@ -1,0 +1,86 @@
+{
+  "projectType": "ai-ml",
+  "projectName": "EmoChat",
+  "projectDescription": "Real-time emotion recognition AI using facial analysis, machine learning, and empathetic feedback.",
+  "theme": "palm",
+  "primaryColor": "#fc0404",
+  "lightColor": "#fc7c7c",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/emotion-recognition",
+              "concepts/ml-model",
+              "concepts/architecture"
+            ]
+          },
+          {
+            "group": "Training Guide",
+            "pages": [
+              "training/data-preparation",
+              "training/model-training",
+              "training/testing"
+            ]
+          },
+          {
+            "group": "Web Application",
+            "pages": [
+              "webapp/flask-server",
+              "webapp/frontend",
+              "webapp/gemini-integration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Functions",
+            "pages": [
+              "api/get-face-landmarks",
+              "api/model-interface"
+            ]
+          },
+          {
+            "group": "HTTP Endpoints",
+            "pages": [
+              "api/predict-endpoint",
+              "api/analyze-session-endpoint"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time facial emotion detection using OpenCV",
+    "Random Forest classifier for Happy/Sad emotion recognition",
+    "Flask web application with webcam integration",
+    "Google Gemini AI for empathetic emotional analysis",
+    "Privacy-focused - no data storage",
+    "30-second emotion tracking sessions"
+  ],
+  "publicApiSurface": [
+    "get_face_landmarks(image, draw, static_image_mode)",
+    "POST /predict",
+    "POST /analyze_session",
+    "RandomForestClassifier model",
+    "train_model.py",
+    "prepare_data.py",
+    "test_model.py"
+  ]
+}
