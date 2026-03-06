@@ -1,0 +1,316 @@
+---
+title: Gemini AI Integration
+description: Google Gemini integration for empathetic emotional analysis
+---
+
+## Overview
+
+EmoChat integrates Google's Gemini AI to provide empathetic, personalized feedback after analyzing a user's 30-second emotional recording session. The AI considers both the detected emotion patterns and the user-provided context to generate supportive messages.
+
+## Implementation
+
+The Gemini integration is implemented in the `/analyze_session` endpoint in `app.py`:
+
+```python
+@app.route('/analyze_session', methods=['POST'])
+def analyze_session():
+    try:
+        data = request.json
+        context = data.get('context', '')
+        emotions_array = data.get('emotions', [])
+        
+        if not context:
+            return jsonify({'error': 'No context provided'}), 400
+            
+        import sys
+        try:
+            from google import genai
+            # Initialize client
+            client = genai.Client(api_key="")
+            prompt = f"El usuario acaba de tener una sesión de 30 segundos hablando a una cámara sobre el siguiente tema/contexto:\n\n'{context}'\n\nDurante este tiempo, la IA detectó segundo a segundo la siguiente secuencia de emociones en su rostro:\n{emotions_array}\n\nActúa como un asistente muy empático. Analiza brevemente qué significa esta fluctuación de emociones dado el contexto y, lo más importante, brinda un mensaje de mucho apoyo o recuérdale algo positivo y bonito al usuario para subirle el ánimo. Da una respuesta cálida y concisa (máximo 2 párrafos)."
+            
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            
+            return jsonify({'analysis': response.text})
+            
+        except ImportError:
+            return jsonify({'error': 'La librería google-genai no está instalada'}), 500
+        except Exception as e:
+            if "API key" in str(e).lower() or "credentials" in str(e).lower():
+                return jsonify({'error': 'Falta configurar tu GEMINI_API_KEY'}), 500
+            return jsonify({'error': f'Error usando Gemini: {str(e)}'}), 500
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+```
+
+## API Key Configuration
+
+<Warning>
+**IMPORTANT:** You must configure your Google Gemini API key before using this feature.
+</Warning>
+
+The current implementation has a placeholder for the API key:
+
+```python
+client = genai.Client(api_key="")
+```
+
+### Setting Up Your API Key
+
+**Option 1: Environment Variable (Recommended)**
+
+Set the `GEMINI_API_KEY` environment variable:
+
+```bash
+export GEMINI_API_KEY="your-api-key-here"
+```
+
+Then modify the code to read from the environment:
+
+```python
+import os
+client = genai.Client(api_key=os.environ.get('GEMINI_API_KEY', ''))
+```
+
+**Option 2: Direct Configuration**
+
+Replace the empty string with your actual API key:
+
+```python
+client = genai.Client(api_key="AIzaSy...your-key-here")
+```
+
+<Warning>
+Never commit API keys directly to version control. Use environment variables or secret management services.
+</Warning>
+
+### Getting a Gemini API Key
+
+1. Visit [Google AI Studio](https://aistudio.google.com/)
+2. Sign in with your Google account
+3. Navigate to "Get API Key"
+4. Create or select a project
+5. Generate and copy your API key
+
+## Request Format
+
+The frontend sends a POST request with two fields:
+
+```json
+{
+  "context": "Me gustaría hablar sobre cómo me sentí hoy en el trabajo. Tuve una reunión difícil con mi jefe.",
+  "emotions": [
+    "Tristeza",
+    "Tristeza",
+    "Enojo",
+    "Tristeza",
+    "Alegría",
+    "Tristeza",
+    ...
+  ]
+}
+```
+
+**Fields:**
+- `context`: User-provided description of what they talked about
+- `emotions`: Array of 30 emotions (one per second) detected during the session
+
+## Prompt Engineering
+
+The prompt sent to Gemini is carefully crafted to generate empathetic responses:
+
+```python
+prompt = f"""El usuario acaba de tener una sesión de 30 segundos hablando a una cámara 
+sobre el siguiente tema/contexto:
+
+'{context}'
+
+Durante este tiempo, la IA detectó segundo a segundo la siguiente secuencia de emociones 
+en su rostro:
+{emotions_array}
+
+Actúa como un asistente muy empático. Analiza brevemente qué significa esta fluctuación 
+de emociones dado el contexto y, lo más importante, brinda un mensaje de mucho apoyo o 
+recuérdale algo positivo y bonito al usuario para subirle el ánimo. Da una respuesta 
+cálida y concisa (máximo 2 párrafos)."""
+```
+
+**Prompt Structure:**
+1. **Context**: What the user talked about
+2. **Emotion data**: Sequential array of detected emotions
+3. **Role instruction**: Act as an empathetic assistant
+4. **Task**: Analyze emotion fluctuations and provide supportive feedback
+5. **Constraints**: Keep response warm and concise (max 2 paragraphs)
+
+## Model Selection
+
+The implementation uses the `gemini-2.5-flash` model:
+
+```python
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt
+)
+```
+
+**Why Gemini 2.5 Flash?**
+- Fast response times (important for real-time user experience)
+- Cost-effective for frequent requests
+- Sufficient capability for empathetic text generation
+- Good balance of speed and quality
+
+## Response Format
+
+**Success Response:**
+```json
+{
+  "analysis": "Veo que durante tu reflexión sobre el trabajo hubo momentos de tristeza intercalados con alegría. Es completamente normal sentir esta mezcla cuando enfrentamos situaciones profesionales desafiantes.\n\nRecuerda que expresar tus emociones es un paso valiente hacia el autocuidado. Tu capacidad para reconocer y explorar tus sentimientos demuestra fortaleza emocional. Cada pequeño paso que das hacia tu bienestar cuenta, y estás haciendo exactamente eso ahora. Respira profundo y date crédito por dedicar este tiempo a ti mismo."
+}
+```
+
+**Error Responses:**
+
+```json
+{
+  "error": "No context provided"
+}
+```
+Status: `400 Bad Request`
+
+```json
+{
+  "error": "La librería google-genai no está instalada o configurada. Por favor instala con pip install google-genai"
+}
+```
+Status: `500 Internal Server Error`
+
+```json
+{
+  "error": "Falta configurar tu GEMINI_API_KEY. Configúrala como variable de entorno o en el archivo app.py."
+}
+```
+Status: `500 Internal Server Error`
+
+## Error Handling
+
+The implementation includes comprehensive error handling:
+
+### Missing Context
+```python
+if not context:
+    return jsonify({'error': 'No context provided'}), 400
+```
+
+### Missing Library
+```python
+except ImportError:
+    return jsonify({
+        'error': 'La librería google-genai no está instalada o configurada. '
+                 'Por favor instala con pip install google-genai'
+    }), 500
+```
+
+### API Key Issues
+```python
+except Exception as e:
+    if "API key" in str(e).lower() or "credentials" in str(e).lower():
+        return jsonify({
+            'error': 'Falta configurar tu GEMINI_API_KEY. '
+                     'Configúrala como variable de entorno o en el archivo app.py.'
+        }), 500
+```
+
+### General Errors
+```python
+return jsonify({'error': f'Error usando Gemini: {str(e)}'}), 500
+```
+
+## Dependencies
+
+Install the required Google Generative AI library:
+
+```bash
+pip install google-genai
+```
+
+Or add to your `requirements.txt`:
+
+```
+google-genai>=1.0.0
+```
+
+## Frontend Integration
+
+The frontend displays the Gemini analysis in a dedicated results section:
+
+```html
+<div class="gemini-analysis-results" style="margin-top: 20px;">
+  <h3>Análisis de Gemini AI:</h3>
+  <p id="gemini-result">Aquí aparecerán los resultados del análisis de tu sesión.</p>
+</div>
+```
+
+JavaScript handles the API call and updates the display:
+
+```javascript
+const response = await fetch('/analyze_session', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        context: contextText,
+        emotions: recordedEmotions
+    })
+});
+
+const data = await response.json();
+
+if (data.error) {
+    geminiResultText.textContent = `❌ Error: ${data.error}`;
+} else if (data.analysis) {
+    geminiResultText.textContent = data.analysis;
+}
+```
+
+## Example Session Flow
+
+1. User enters context: "Talking about my day at work"
+2. User clicks "Grabar Análisis (30s)"
+3. For 30 seconds, emotions are detected: `["Tristeza", "Alegría", "Tristeza", ...]`
+4. After 30 seconds, frontend sends context + emotions to `/analyze_session`
+5. Backend constructs prompt with context and emotion sequence
+6. Gemini AI generates empathetic analysis
+7. Response displayed to user with supportive message
+
+## Best Practices
+
+<Check>
+**Do:**
+- Store API keys in environment variables
+- Handle all API errors gracefully
+- Validate input before sending to Gemini
+- Keep prompts focused and concise
+- Test with various emotion patterns
+</Check>
+
+<Warning>
+**Don't:**
+- Commit API keys to version control
+- Send empty emotion arrays
+- Ignore rate limits from Google
+- Make synchronous calls that block the server
+</Warning>
+
+## Rate Limits and Costs
+
+Be aware of Gemini API usage limits:
+
+- **Free tier**: Limited requests per minute/day
+- **Paid tier**: Higher quotas, pay-per-use
+
+Monitor your usage in [Google Cloud Console](https://console.cloud.google.com/) to avoid unexpected charges or service interruptions.

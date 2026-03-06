@@ -1,0 +1,534 @@
+---
+title: 'Installation'
+description: 'Complete installation guide for EmoChat emotion recognition system'
+icon: 'download'
+---
+
+This guide covers everything you need to install and configure EmoChat on your system.
+
+## System Requirements
+
+<CardGroup cols={2}>
+
+<Card title="Operating System" icon="desktop">
+  - Linux (Ubuntu 20.04+)
+  - macOS (10.15+)
+  - Windows 10/11
+</Card>
+
+<Card title="Python" icon="python">
+  - Python 3.8 or higher
+  - pip package manager
+  - Virtual environment (recommended)
+</Card>
+
+<Card title="Hardware" icon="microchip">
+  - Webcam (for real-time detection)
+  - 4GB RAM minimum
+  - 1GB free disk space
+</Card>
+
+<Card title="Browser" icon="browser">
+  - Chrome 80+
+  - Firefox 75+
+  - Safari 13+
+  - Edge 80+
+</Card>
+
+</CardGroup>
+
+## Python Environment Setup
+
+<Tabs>
+  <Tab title="Linux/macOS">
+    Create and activate a virtual environment:
+
+    ```bash
+    # Create virtual environment
+    python3 -m venv emochat-env
+
+    # Activate environment
+    source emochat-env/bin/activate
+
+    # Verify Python version
+    python --version
+    ```
+
+    <Note>
+    You should see Python 3.8 or higher. If not, install a newer version using your package manager.
+    </Note>
+  </Tab>
+
+  <Tab title="Windows">
+    Create and activate a virtual environment:
+
+    ```powershell
+    # Create virtual environment
+    python -m venv emochat-env
+
+    # Activate environment
+    .\emochat-env\Scripts\activate
+
+    # Verify Python version
+    python --version
+    ```
+
+    <Warning>
+    On Windows, you may need to enable script execution:
+    ```powershell
+    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+    ```
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Install Dependencies
+
+### Core Requirements
+
+Install all required packages from `requirements.txt`:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Key Dependencies
+
+The `requirements.txt` file includes:
+
+<AccordionGroup>
+
+<Accordion title="Web Framework (Flask 3.1.3)">
+  Flask powers the web server and API endpoints:
+  - `Flask==3.1.3` - Core framework
+  - `Werkzeug==3.1.6` - WSGI utilities
+  - `Jinja2==3.1.6` - Template engine
+  - `click==8.3.1` - CLI utilities
+</Accordion>
+
+<Accordion title="Computer Vision (OpenCV 4.13.0.92)">
+  OpenCV handles all image processing and facial detection:
+  - `opencv-contrib-python==4.13.0.92` - **Required** for cv2.face module
+  - `opencv-python==4.13.0.92` - Core OpenCV functionality
+
+  <Warning>
+  **Critical**: You must use `opencv-contrib-python`, not just `opencv-python`. The contrib version includes the `cv2.face` module required for facial landmark detection.
+  </Warning>
+</Accordion>
+
+<Accordion title="Machine Learning (scikit-learn 1.8.0)">
+  Scikit-learn provides the classification algorithms:
+  - `scikit-learn==1.8.0` - Random Forest classifier
+  - `numpy==2.4.2` - Numerical arrays
+  - `scipy==1.17.1` - Scientific computing
+  - `joblib==1.5.3` - Model serialization
+</Accordion>
+
+<Accordion title="Google Gemini AI (Optional)">
+  For AI-powered emotional analysis:
+  - `google-genai==1.66.0` - Gemini API client
+  - `google-auth==2.48.0` - Authentication
+  - `httpx==0.28.1` - HTTP client
+
+  <Note>
+  This is optional. Real-time emotion detection works without Gemini. Only session analysis requires it.
+  </Note>
+</Accordion>
+
+<Accordion title="Visualization (matplotlib 3.10.8)">
+  For data visualization during model training:
+  - `matplotlib==3.10.8` - Plotting library
+  - `Pillow==12.1.1` - Image processing
+</Accordion>
+
+</AccordionGroup>
+
+## OpenCV Installation
+
+### Why opencv-contrib-python?
+
+EmoChat uses the **LBF (Local Binary Features) facial landmark model**, which is part of OpenCV's `cv2.face` module. This module is **only available in `opencv-contrib-python`**.
+
+### Verify Installation
+
+Check if cv2.face module is available:
+
+```python
+import cv2
+
+if hasattr(cv2, 'face'):
+    print("✓ opencv-contrib-python is correctly installed")
+else:
+    print("✗ Missing cv2.face module - install opencv-contrib-python")
+```
+
+### Fix Missing cv2.face Module
+
+If you get an error about `cv2.face` not existing:
+
+<Tabs>
+  <Tab title="Solution 1: Reinstall">
+    ```bash
+    # Remove standard OpenCV
+    pip uninstall opencv-python opencv-python-headless
+
+    # Install contrib version
+    pip install opencv-contrib-python==4.13.0.92
+    ```
+  </Tab>
+
+  <Tab title="Solution 2: Build from Source">
+    If pip installation fails, build from source:
+
+    ```bash
+    # Install build dependencies (Ubuntu/Debian)
+    sudo apt-get update
+    sudo apt-get install build-essential cmake git
+    sudo apt-get install libgtk-3-dev libavcodec-dev libavformat-dev libswscale-dev
+
+    # Clone OpenCV repos
+    git clone https://github.com/opencv/opencv.git
+    git clone https://github.com/opencv/opencv_contrib.git
+
+    # Build with contrib modules
+    cd opencv
+    mkdir build && cd build
+    cmake -DOPENCV_EXTRA_MODULES_PATH=../../opencv_contrib/modules ..
+    make -j4
+    sudo make install
+    ```
+
+    <Warning>
+    Building from source can take 30-60 minutes depending on your system.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Google Gemini API Setup (Optional)
+
+<Steps>
+
+<Step title="Get API Key">
+  1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+  2. Sign in with your Google account
+  3. Click "Create API Key"
+  4. Copy your API key
+</Step>
+
+<Step title="Configure Environment Variable">
+  <Tabs>
+    <Tab title="Linux/macOS">
+      Add to your `~/.bashrc` or `~/.zshrc`:
+
+      ```bash
+      export GEMINI_API_KEY="your-api-key-here"
+      ```
+
+      Then reload:
+      ```bash
+      source ~/.bashrc  # or ~/.zshrc
+      ```
+    </Tab>
+
+    <Tab title="Windows">
+      Set environment variable:
+
+      ```powershell
+      # Temporary (current session)
+      $env:GEMINI_API_KEY = "your-api-key-here"
+
+      # Permanent (system-wide)
+      [System.Environment]::SetEnvironmentVariable('GEMINI_API_KEY', 'your-api-key-here', 'User')
+      ```
+    </Tab>
+  </Tabs>
+</Step>
+
+<Step title="Alternative: Hardcode in app.py">
+  Edit `app.py` at line 74:
+
+  ```python
+  client = genai.Client(api_key="your-api-key-here")
+  ```
+
+  <Warning>
+  Don't commit your API key to version control. Add `app.py` to `.gitignore` or use environment variables.
+  </Warning>
+</Step>
+
+</Steps>
+
+## Model Files Download
+
+EmoChat automatically downloads required model files on first run:
+
+<CardGroup cols={2}>
+
+<Card title="Haar Cascade Classifier" icon="face-smile">
+  **File**: `haarcascade_frontalface_default.xml`
+  
+  **Source**: OpenCV GitHub repository
+  
+  **Purpose**: Detects faces in images
+  
+  **Size**: ~900 KB
+</Card>
+
+<Card title="LBF Landmark Model" icon="location-dot">
+  **File**: `lbfmodel.yaml`
+  
+  **Source**: GSOC2017 GitHub repository
+  
+  **Purpose**: Extracts 68 facial landmarks
+  
+  **Size**: ~50 MB
+</Card>
+
+</CardGroup>
+
+<Note>
+These models are downloaded automatically by `utils.py` when you first run `prepare_data.py`, `train_model.py`, or `app.py`. No manual download required.
+</Note>
+
+### Manual Download (Optional)
+
+If automatic download fails, download manually:
+
+```bash
+# Haar Cascade
+wget https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml
+
+# LBF Model
+wget https://raw.githubusercontent.com/kurnianggoro/GSOC2017/master/data/lbfmodel.yaml
+```
+
+## Verify Installation
+
+Run this verification script:
+
+```python verify_install.py
+import sys
+
+def check_installation():
+    checks = []
+    
+    # Python version
+    py_version = sys.version_info
+    checks.append((
+        "Python 3.8+",
+        py_version.major == 3 and py_version.minor >= 8,
+        f"Python {py_version.major}.{py_version.minor}.{py_version.micro}"
+    ))
+    
+    # Flask
+    try:
+        import flask
+        checks.append(("Flask", True, f"v{flask.__version__}"))
+    except ImportError:
+        checks.append(("Flask", False, "Not installed"))
+    
+    # OpenCV
+    try:
+        import cv2
+        has_face = hasattr(cv2, 'face')
+        checks.append((
+            "opencv-contrib-python",
+            has_face,
+            f"v{cv2.__version__} {'(with cv2.face)' if has_face else '(missing cv2.face!)'}"
+        ))
+    except ImportError:
+        checks.append(("opencv-contrib-python", False, "Not installed"))
+    
+    # NumPy
+    try:
+        import numpy
+        checks.append(("numpy", True, f"v{numpy.__version__}"))
+    except ImportError:
+        checks.append(("numpy", False, "Not installed"))
+    
+    # scikit-learn
+    try:
+        import sklearn
+        checks.append(("scikit-learn", True, f"v{sklearn.__version__}"))
+    except ImportError:
+        checks.append(("scikit-learn", False, "Not installed"))
+    
+    # Google GenAI (optional)
+    try:
+        import google.genai
+        checks.append(("google-genai (optional)", True, "Installed"))
+    except ImportError:
+        checks.append(("google-genai (optional)", True, "Not installed (optional)"))
+    
+    # Print results
+    print("\n=== EmoChat Installation Verification ===")
+    all_passed = True
+    for name, passed, info in checks:
+        status = "✓" if passed else "✗"
+        print(f"{status} {name}: {info}")
+        if not passed and "optional" not in name.lower():
+            all_passed = False
+    
+    print("\n" + ("All checks passed!" if all_passed else "Some required packages missing."))
+    return all_passed
+
+if __name__ == "__main__":
+    check_installation()
+```
+
+Run it:
+
+```bash
+python verify_install.py
+```
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+
+<Accordion title="ImportError: No module named 'cv2'">
+  OpenCV is not installed:
+
+  ```bash
+  pip install opencv-contrib-python==4.13.0.92
+  ```
+</Accordion>
+
+<Accordion title="AttributeError: module 'cv2' has no attribute 'face'">
+  You have `opencv-python` instead of `opencv-contrib-python`:
+
+  ```bash
+  pip uninstall opencv-python
+  pip install opencv-contrib-python==4.13.0.92
+  ```
+</Accordion>
+
+<Accordion title="ModuleNotFoundError: No module named 'flask'">
+  Flask is not installed:
+
+  ```bash
+  pip install Flask==3.1.3
+  ```
+</Accordion>
+
+<Accordion title="FileNotFoundError: No se encontró el modelo entrenado">
+  The model hasn't been trained yet:
+
+  ```bash
+  python prepare_data.py
+  python train_model.py
+  ```
+</Accordion>
+
+<Accordion title="SSL/TLS Certificate Errors on Windows">
+  Windows may have certificate issues when downloading models:
+
+  ```bash
+  pip install --upgrade certifi
+  ```
+
+  Or download models manually (see "Model Files Download" section).
+</Accordion>
+
+<Accordion title="Permission Denied on Linux/macOS">
+  Use `pip install --user` or activate virtual environment:
+
+  ```bash
+  python3 -m venv env
+  source env/bin/activate
+  pip install -r requirements.txt
+  ```
+</Accordion>
+
+<Accordion title="Port 5000 Already in Use">
+  Change the port in `app.py:96`:
+
+  ```python
+  app.run(debug=True, port=5001)  # Use different port
+  ```
+</Accordion>
+
+</AccordionGroup>
+
+### Platform-Specific Issues
+
+<Tabs>
+  <Tab title="macOS">
+    **Webcam Permission**
+    
+    Grant Terminal/IDE camera access in System Preferences:
+    ```
+    System Preferences → Security & Privacy → Privacy → Camera
+    ```
+
+    **M1/M2 ARM Issues**
+    
+    If you encounter architecture errors:
+    ```bash
+    # Use Rosetta Python
+    arch -x86_64 python3 -m pip install -r requirements.txt
+    ```
+  </Tab>
+
+  <Tab title="Linux">
+    **Video Device Access**
+    
+    Add your user to the `video` group:
+    ```bash
+    sudo usermod -a -G video $USER
+    # Log out and back in
+    ```
+
+    **Missing Build Tools**
+    
+    Install development headers:
+    ```bash
+    # Ubuntu/Debian
+    sudo apt-get install python3-dev libopencv-dev
+
+    # Fedora/RHEL
+    sudo dnf install python3-devel opencv-devel
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    **Visual C++ Build Tools**
+    
+    Some packages require compilation. Install:
+    - [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+
+    **Long Path Support**
+    
+    Enable long paths in Windows 10/11:
+    ```powershell
+    # Run as Administrator
+    New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+    ```
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+Once installation is complete:
+
+<CardGroup cols={2}>
+
+<Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+  Follow the quickstart to train your model and launch EmoChat
+</Card>
+
+<Card title="Model Training" icon="brain" href="/training/model-training">
+  Learn how to prepare data and train the emotion classifier
+</Card>
+
+<Card title="API Reference" icon="code" href="/api/get-face-landmarks">
+  Explore Flask API endpoints and integration options
+</Card>
+
+<Card title="Core Concepts" icon="lightbulb" href="/concepts/architecture">
+  Understand the system architecture and how components work together
+</Card>
+
+</CardGroup>

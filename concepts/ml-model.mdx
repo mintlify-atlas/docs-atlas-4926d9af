@@ -1,0 +1,367 @@
+---
+title: 'Machine Learning Model'
+description: 'Understanding the Random Forest classifier that powers EmoChat emotion detection'
+icon: 'brain'
+---
+
+## Overview
+
+EmoChat uses a **Random Forest Classifier** to predict emotions from normalized facial landmarks. The model is trained on facial feature data extracted from labeled emotion images and achieves high accuracy through ensemble learning.
+
+## Random Forest Classifier
+
+### What is Random Forest?
+
+Random Forest is an ensemble machine learning algorithm that:
+
+- Creates multiple decision trees during training
+- Each tree votes on the predicted class
+- Final prediction is determined by majority vote
+- Reduces overfitting compared to single decision trees
+- Handles high-dimensional feature spaces well
+
+<Info>
+**Why Random Forest for Emotion Detection?**
+
+Random Forest is ideal for this task because:
+- Robust to noise in facial landmark detection
+- Handles the 136-dimensional feature space efficiently
+- Requires less data than deep learning approaches
+- Fast inference suitable for real-time predictions
+- Interpretable feature importance
+</Info>
+
+## Model Configuration
+
+### Hyperparameters
+
+The model is configured in `train_model.py:56` with the following parameters:
+
+```python
+rf_classifier = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=None,
+    n_jobs=-1,
+    random_state=42,
+)
+```
+
+<ParamField path="n_estimators" type="int" default="200">
+  Number of decision trees in the forest. More trees generally improve accuracy but increase training time and model size.
+</ParamField>
+
+<ParamField path="max_depth" type="None">
+  Maximum depth of each tree. `None` means nodes expand until all leaves are pure or contain fewer than `min_samples_split` samples. This allows trees to fully capture patterns in the data.
+</ParamField>
+
+<ParamField path="n_jobs" type="int" default="-1">
+  Number of CPU cores to use for training. `-1` uses all available cores for parallel processing.
+</ParamField>
+
+<ParamField path="random_state" type="int" default="42">
+  Seed for random number generation. Ensures reproducible results across training runs.
+</ParamField>
+
+## Training Data Structure
+
+### Data Format
+
+Training data is stored in `data.txt` as a NumPy array with shape `(n_samples, 137)`:
+
+```
+[x1, y1, x2, y2, ..., x68, y68, label]
+```
+
+- **Columns 0-135**: Normalized facial landmark coordinates (136 features)
+- **Column 136**: Emotion label (integer)
+  - `0` = HAPPY
+  - `1` = SAD
+
+### Data Preparation
+
+The `prepare_data.py` script processes raw images to create training data:
+
+```python
+# Only process these emotions
+ALLOWED_EMOTIONS = {"happy", "sad"}
+
+for emotion_indx, emotion in enumerate(emotion_folders):
+    emotion_path = os.path.join(data_dir, emotion)
+    
+    for image_path_ in os.listdir(emotion_path):
+        image = cv2.imread(image_path)
+        face_landmarks = get_face_landmarks(image)
+        
+        if len(face_landmarks) > 0:
+            sample = face_landmarks + [int(emotion_indx)]
+            output.append(sample)
+
+np.savetxt("data.txt", np.asarray(output))
+```
+
+<Note>
+The script processes images from folder structure:
+```
+data/
+├── happy/
+│   ├── image1.jpg
+│   ├── image2.jpg
+│   └── ...
+└── sad/
+    ├── image1.jpg
+    ├── image2.jpg
+    └── ...
+```
+</Note>
+
+## Training Process
+
+### Data Loading
+
+The training script loads preprocessed data:
+
+```python
+# Load data from text file
+data = np.loadtxt("data.txt")
+
+if data.ndim == 1:
+    # Single sample -> reshape to (1, n_features)
+    data = data.reshape(1, -1)
+
+# Separate features (X) and labels (y)
+X = data[:, :-1]  # First 136 columns
+y = data[:, -1].astype(int)  # Last column
+```
+
+### Train/Test Split Strategy
+
+Data is split into training and testing sets using **stratified sampling**:
+
+```python
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42,
+    shuffle=True,
+    stratify=y,
+)
+```
+
+<ParamField path="test_size" type="float" default="0.2">
+  20% of data reserved for testing, 80% used for training
+</ParamField>
+
+<ParamField path="random_state" type="int" default="42">
+  Ensures consistent split across runs for reproducibility
+</ParamField>
+
+<ParamField path="shuffle" type="bool" default="True">
+  Randomly shuffles data before splitting to avoid ordering bias
+</ParamField>
+
+<ParamField path="stratify" type="array" default="y">
+  Ensures both train and test sets have the same proportion of each emotion class. Critical for balanced evaluation.
+</ParamField>
+
+<Info>
+**Why Stratified Split?**
+
+If you have 100 happy samples and 20 sad samples:
+- **Without stratification**: Test set might get 0 sad samples by chance
+- **With stratification**: Test set gets ~16 happy and ~4 sad samples (same 80/20 ratio)
+
+This ensures the model is evaluated on all emotion classes.
+</Info>
+
+### Model Training
+
+Training is straightforward with scikit-learn:
+
+```python
+rf_classifier.fit(X_train, y_train)
+```
+
+The Random Forest algorithm:
+1. Creates 200 decision trees
+2. Each tree is trained on a random bootstrap sample of the data
+3. Each split considers a random subset of features
+4. Trees are grown to maximum depth
+5. All trees are stored in the ensemble
+
+## Model Evaluation
+
+### Accuracy Metric
+
+The model is evaluated on the held-out test set:
+
+```python
+y_pred = rf_classifier.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+
+print(f"Accuracy: {accuracy * 100:.2f}%")
+```
+
+**Accuracy** measures the percentage of correct predictions:
+
+```
+Accuracy = (Correct Predictions) / (Total Predictions)
+```
+
+### Confusion Matrix
+
+The training script also prints a confusion matrix:
+
+```python
+print(confusion_matrix(y_test, y_pred))
+```
+
+Example output:
+```
+[[45  2]   # 45 happy correctly classified, 2 misclassified as sad
+ [ 1 38]]  # 1 sad misclassified as happy, 38 correctly classified
+```
+
+<Tip>
+The confusion matrix helps identify:
+- **True Positives**: Correctly identified emotions
+- **False Positives**: Incorrectly predicted emotions
+- **Class-specific performance**: Which emotions are harder to detect
+</Tip>
+
+## Making Predictions
+
+### Model Loading
+
+The trained model is serialized using pickle and loaded at runtime:
+
+```python
+# Save model (train_model.py:74)
+with open("./model", "wb") as f:
+    pickle.dump(rf_classifier, f)
+
+# Load model (app.py:28)
+with open("./model", "rb") as f:
+    model = pickle.load(f)
+```
+
+### Inference
+
+Predictions are made by passing normalized facial landmarks:
+
+```python
+# Extract features from current frame
+face_landmarks = get_face_landmarks(frame)
+
+# Predict emotion
+if len(face_landmarks) > 0:
+    output = model.predict([face_landmarks])
+    emotion = emotions[int(output[0])]
+```
+
+The `predict()` method:
+1. Passes features through all 200 decision trees
+2. Each tree votes for a class (0 or 1)
+3. Returns the majority vote as the prediction
+
+### Prediction Output
+
+```python
+model.predict([[x1, y1, ..., x68, y68]])
+# Returns: array([0]) or array([1])
+```
+
+The integer is mapped to emotion labels:
+
+```python
+emotions = ["HAPPY", "SAD"]
+emotion = emotions[int(output[0])]
+# Returns: "HAPPY" or "SAD"
+```
+
+## Model Performance Considerations
+
+### Inference Speed
+
+Random Forest provides fast predictions:
+- Single prediction: < 1ms on modern CPUs
+- Suitable for real-time video processing at 1 FPS
+- Parallel tree evaluation when using multiple cores
+
+### Memory Footprint
+
+Model size depends on:
+- Number of trees (200)
+- Average tree depth (depends on data)
+- Number of features (136)
+
+Typical model file size: 500KB - 2MB
+
+### Training Requirements
+
+<CardGroup cols={2}>
+  <Card title="Minimum Data" icon="database">
+    At least 2 classes with multiple samples each. More data improves accuracy.
+  </Card>
+  
+  <Card title="Training Time" icon="clock">
+    Typically 1-10 seconds depending on dataset size and CPU cores available.
+  </Card>
+</CardGroup>
+
+## Model Limitations
+
+<Warning>
+**Current Limitations**
+
+1. **Binary Classification**: Only distinguishes between 2 emotions (Happy/Sad)
+2. **Single Face**: Only processes the first detected face
+3. **Static Features**: Doesn't capture temporal dynamics of expressions
+4. **Lighting Sensitivity**: Performance degrades in poor lighting conditions
+5. **Data Dependency**: Accuracy depends on quality and diversity of training data
+</Warning>
+
+## Extending the Model
+
+To add more emotion classes:
+
+1. **Add training data** in `data/` folder:
+   ```
+   data/
+   ├── happy/
+   ├── sad/
+   ├── angry/      # New emotion
+   └── surprised/  # New emotion
+   ```
+
+2. **Update allowed emotions** in `prepare_data.py:25`:
+   ```python
+   ALLOWED_EMOTIONS = {"happy", "sad", "angry", "surprised"}
+   ```
+
+3. **Update emotion labels** in `app.py:19`:
+   ```python
+   emotions = ["ANGRY", "HAPPY", "SAD", "SURPRISED"]  # Alphabetical order
+   ```
+
+4. **Retrain the model**:
+   ```bash
+   python prepare_data.py
+   python train_model.py
+   ```
+
+<Note>
+Emotion folders are processed in **alphabetical order**, which determines the integer labels. Keep this consistent across preparation and prediction.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Emotion Recognition" icon="face-smile" href="/concepts/emotion-recognition">
+    Learn how facial landmarks are detected and extracted
+  </Card>
+  
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    Understand the complete system architecture
+  </Card>
+</CardGroup>

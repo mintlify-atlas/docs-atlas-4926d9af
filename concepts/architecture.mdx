@@ -1,0 +1,711 @@
+---
+title: 'System Architecture'
+description: 'Comprehensive overview of EmoChat system design, components, and data flow'
+icon: 'diagram-project'
+---
+
+## Overview
+
+EmoChat is built as a client-server web application that performs real-time emotion recognition. The system integrates computer vision, machine learning, and generative AI to provide an empathetic emotional analysis experience.
+
+## Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph Client["Client (Browser)"]
+        A[Webcam] --> B[JavaScript/HTML]
+        B --> C[Video Capture]
+        C --> D[Base64 Encoding]
+    end
+    
+    subgraph Server["Flask Backend"]
+        E[/predict endpoint] --> F[Base64 Decode]
+        F --> G[OpenCV Processing]
+        G --> H[Haar Cascade Detection]
+        H --> I[LBF Landmark Extraction]
+        I --> J[Feature Normalization]
+        J --> K[Random Forest Model]
+        K --> L[Emotion Label]
+        
+        M[/analyze_session endpoint] --> N[Gemini AI Client]
+        N --> O[Prompt Construction]
+        O --> P[AI Analysis]
+    end
+    
+    subgraph External["External Services"]
+        Q[Gemini 2.5 Flash API]
+    end
+    
+    D -->|HTTP POST| E
+    L -->|JSON Response| B
+    B -->|Session Data| M
+    P --> Q
+    Q -->|Empathetic Response| B
+    
+    style Client fill:#e1f5ff
+    style Server fill:#fff4e1
+    style External fill:#f0e1ff
+```
+
+## System Components
+
+### 1. Frontend (JavaScript + HTML)
+
+**Files**: `index.html`, `main.js`
+
+The web-based user interface handles:
+
+#### Webcam Access
+```javascript
+stream = await navigator.mediaDevices.getUserMedia({ video: true });
+video.srcObject = stream;
+```
+
+#### Frame Capture
+Captures frames every 1 second:
+```javascript
+predictionInterval = setInterval(sendFrameForPrediction, 1000);
+```
+
+#### Image Encoding
+```javascript
+const context = canvas.getContext('2d');
+context.drawImage(video, 0, 0, canvas.width, canvas.height);
+const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+```
+
+#### Session Recording
+Tracks emotions during 30-second sessions:
+```javascript
+let isRecordingSession = false;
+let recordedEmotions = [];
+let recordingCountdown = 30;
+```
+
+<Info>
+**Frontend Responsibilities:**
+- Camera permissions and access
+- Real-time video streaming
+- Frame extraction and encoding
+- UI updates and user feedback
+- Session management
+- Gemini AI result display
+</Info>
+
+### 2. Backend (Flask Server)
+
+**File**: `app.py`
+
+The Python Flask server provides two main endpoints:
+
+#### `/predict` Endpoint
+
+Handles real-time emotion detection:
+
+```python
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.json
+    
+    # Decode base64 image
+    img_data = data['image'].split(',')[1]
+    nparr = np.frombuffer(base64.b64decode(img_data), np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    # Extract facial landmarks
+    face_landmarks = get_face_landmarks(frame, draw=False, static_image_mode=True)
+    
+    # Predict emotion
+    if len(face_landmarks) > 0:
+        output = model.predict([face_landmarks])
+        emotion = emotions[int(output[0])]
+        return jsonify({'emotion': emotion})
+    else:
+        return jsonify({'emotion': 'No face detected'})
+```
+
+**Request Format:**
+```json
+{
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+}
+```
+
+**Response Format:**
+```json
+{
+  "emotion": "HAPPY"
+}
+```
+
+#### `/analyze_session` Endpoint
+
+Handles session analysis with Gemini AI:
+
+```python
+@app.route('/analyze_session', methods=['POST'])
+def analyze_session():
+    data = request.json
+    context = data.get('context', '')
+    emotions_array = data.get('emotions', [])
+    
+    from google import genai
+    client = genai.Client(api_key="")
+    
+    prompt = f"""El usuario acaba de tener una sesión de 30 segundos hablando 
+    a una cámara sobre el siguiente tema/contexto:
+    
+    '{context}'
+    
+    Durante este tiempo, la IA detectó segundo a segundo la siguiente 
+    secuencia de emociones en su rostro:
+    {emotions_array}
+    
+    Actúa como un asistente muy empático..."""
+    
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+    
+    return jsonify({'analysis': response.text})
+```
+
+**Request Format:**
+```json
+{
+  "context": "Me gustaría hablar sobre cómo me sentí hoy en el trabajo...",
+  "emotions": ["Alegría", "Tristeza", "Alegría", ...]
+}
+```
+
+**Response Format:**
+```json
+{
+  "analysis": "Veo que experimentaste una fluctuación emocional..."
+}
+```
+
+<Info>
+**Backend Responsibilities:**
+- HTTP request/response handling
+- Image decoding and preprocessing
+- Facial landmark detection
+- ML model inference
+- Gemini AI integration
+- Error handling and validation
+</Info>
+
+### 3. Computer Vision Module
+
+**File**: `utils.py`
+
+Provides core facial analysis functionality:
+
+```python
+def get_face_landmarks(image, draw: bool = False, static_image_mode: bool = True) -> List[float]:
+    # Lazy load models
+    face_detector, facemark = _get_models()
+    
+    # Convert to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Detect faces
+    faces = face_detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+    
+    # Extract landmarks
+    ok, landmarks = facemark.fit(gray, faces)
+    
+    # Normalize coordinates
+    # ... (68 points normalized to [0, 1] range)
+    
+    return features
+```
+
+**Model Management:**
+```python
+_HAAR_URL = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+_LBF_URL = "https://raw.githubusercontent.com/kurnianggoro/GSOC2017/master/data/lbfmodel.yaml"
+
+def _ensure_models():
+    if not os.path.isfile(_HAAR_PATH):
+        _download_file(_HAAR_URL, _HAAR_PATH)
+    if not os.path.isfile(_LBF_PATH):
+        _download_file(_LBF_URL, _LBF_PATH)
+```
+
+<Tip>
+Models are downloaded automatically on first run and cached locally for subsequent use.
+</Tip>
+
+### 4. Machine Learning Pipeline
+
+**Training Files**: `prepare_data.py`, `train_model.py`
+
+**Inference**: Loaded model in `app.py`
+
+```python
+# Load trained model at startup
+with open("./model", "rb") as f:
+    model = pickle.load(f)
+
+# Use for predictions
+output = model.predict([face_landmarks])
+```
+
+### 5. External Integration
+
+**Gemini AI**: Google's generative AI for empathetic analysis
+
+```python
+from google import genai
+
+client = genai.Client(api_key="")
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt
+)
+```
+
+<Warning>
+Requires `GEMINI_API_KEY` environment variable to be set for Gemini integration to work.
+</Warning>
+
+## Data Flow
+
+### Emotion Detection Flow
+
+1. **Webcam Capture** (Client)
+   - Browser requests camera access
+   - Video stream starts at native resolution
+   - Canvas element captures frames
+
+2. **Frame Processing** (Client)
+   - Every 1 second, draw video frame to canvas
+   - Convert canvas to JPEG with 80% quality
+   - Encode as Base64 data URL
+
+3. **Network Transfer** (Client → Server)
+   - HTTP POST to `/predict`
+   - JSON payload with Base64 image
+   - Async fetch request
+
+4. **Image Decoding** (Server)
+   - Parse Base64 string
+   - Decode to NumPy array
+   - Convert to OpenCV BGR format
+
+5. **Face Detection** (Server)
+   - Haar Cascade scans grayscale image
+   - Returns bounding boxes of detected faces
+   - Processes only first detected face
+
+6. **Landmark Extraction** (Server)
+   - LBF model fits 68 points to face
+   - Returns raw (x, y) coordinates
+
+7. **Feature Normalization** (Server)
+   - Calculate face bounding box
+   - Normalize each coordinate to [0, 1]
+   - Return flat 136-element array
+
+8. **Model Prediction** (Server)
+   - Pass features to Random Forest
+   - 200 trees vote on classification
+   - Return majority class (0 or 1)
+
+9. **Response** (Server → Client)
+   - Map integer to emotion label
+   - Return JSON with emotion string
+
+10. **UI Update** (Client)
+    - Display emotion in overlay
+    - Update CSS classes for styling
+    - Track emotion if recording session
+
+### Session Analysis Flow
+
+1. **User Input** (Client)
+   - User provides context (what they'll talk about)
+   - Clicks "Grabar Análisis (30s)" button
+
+2. **Recording Session** (Client)
+   - 30-second countdown starts
+   - Each detected emotion is appended to array
+   - Timer displays remaining seconds
+
+3. **Session Completion** (Client)
+   - After 30 seconds, recording stops
+   - Emotion array and context packaged
+
+4. **API Request** (Client → Server)
+   - HTTP POST to `/analyze_session`
+   - JSON with context text and emotions array
+
+5. **Prompt Construction** (Server)
+   - Format user context
+   - Include emotion timeline
+   - Add empathetic instruction
+
+6. **Gemini API Call** (Server → External)
+   - Send prompt to Gemini 2.5 Flash
+   - Wait for AI-generated response
+
+7. **Response** (Server → Client)
+   - Return Gemini's analysis text
+   - Display in UI results section
+
+## File Structure
+
+```
+emochat/
+├── source/
+│   ├── app.py                 # Flask server and API endpoints
+│   ├── utils.py               # Facial landmark detection utilities
+│   ├── train_model.py         # ML model training script
+│   ├── test_model.py          # Real-time testing with webcam
+│   ├── prepare_data.py        # Training data preparation
+│   ├── index.html             # Web UI structure
+│   ├── main.js                # Client-side JavaScript logic
+│   ├── styles.css             # UI styling (referenced but not shown)
+│   ├── model                  # Trained Random Forest (pickle file)
+│   ├── data.txt               # Training data (features + labels)
+│   ├── haarcascade_frontalface_default.xml  # Face detection model
+│   └── lbfmodel.yaml          # Facial landmark model
+│
+├── data/                      # Training image folders
+│   ├── happy/                 # Happy expression images
+│   └── sad/                   # Sad expression images
+│
+└── docs/                      # Documentation (this site)
+    └── concepts/
+        ├── emotion-recognition.mdx
+        ├── ml-model.mdx
+        └── architecture.mdx
+```
+
+## Component Responsibilities
+
+<AccordionGroup>
+  <Accordion title="index.html" icon="file-code">
+    **Purpose**: Web application UI structure
+    
+    **Key Elements:**
+    - Video element for webcam stream
+    - Canvas for frame capture (hidden)
+    - Control buttons (Start, Stop, Record)
+    - Context input textarea
+    - Results display areas
+    - Emotion information cards
+  </Accordion>
+  
+  <Accordion title="main.js" icon="square-js">
+    **Purpose**: Client-side interaction logic
+    
+    **Responsibilities:**
+    - Webcam initialization and control
+    - Frame capture and encoding
+    - API communication
+    - Session recording management
+    - UI updates based on responses
+    - Error handling and user feedback
+    
+    **Key Functions:**
+    - `sendFrameForPrediction()` - Sends frames to `/predict`
+    - `startRecording()` - Begins 30s emotion tracking
+    - `stopRecordingAndAnalyze()` - Sends to `/analyze_session`
+  </Accordion>
+  
+  <Accordion title="app.py" icon="server">
+    **Purpose**: HTTP server and API layer
+    
+    **Responsibilities:**
+    - Flask application setup
+    - Route handling (`/`, `/predict`, `/analyze_session`)
+    - Request validation
+    - Image decoding
+    - Model orchestration
+    - Response formatting
+    - Error handling
+    
+    **Startup:**
+    ```python
+    if __name__ == '__main__':
+        print("Iniciando servidor Flask de EmoChat en http://127.0.0.1:5000/")
+        app.run(debug=True, port=5000)
+    ```
+  </Accordion>
+  
+  <Accordion title="utils.py" icon="wrench">
+    **Purpose**: Computer vision utilities
+    
+    **Responsibilities:**
+    - Model download and caching
+    - Face detection configuration
+    - Landmark extraction
+    - Feature normalization
+    - Optional visualization
+    
+    **Exported Function:**
+    ```python
+    get_face_landmarks(image, draw=False, static_image_mode=True) -> List[float]
+    ```
+  </Accordion>
+  
+  <Accordion title="train_model.py" icon="graduation-cap">
+    **Purpose**: ML model training
+    
+    **Responsibilities:**
+    - Load training data from `data.txt`
+    - Split into train/test sets (80/20)
+    - Train Random Forest classifier
+    - Evaluate accuracy and confusion matrix
+    - Serialize model to disk
+    
+    **Usage:**
+    ```bash
+    python train_model.py
+    ```
+  </Accordion>
+  
+  <Accordion title="prepare_data.py" icon="database">
+    **Purpose**: Training data preprocessing
+    
+    **Responsibilities:**
+    - Read images from emotion folders
+    - Extract facial landmarks from each image
+    - Assign integer labels (alphabetical order)
+    - Save as NumPy text file
+    
+    **Usage:**
+    ```bash
+    python prepare_data.py
+    ```
+  </Accordion>
+  
+  <Accordion title="test_model.py" icon="vial">
+    **Purpose**: Real-time model testing
+    
+    **Responsibilities:**
+    - Open webcam stream
+    - Process frames in real-time
+    - Display landmarks and predictions
+    - Verify model before deployment
+    
+    **Usage:**
+    ```bash
+    python test_model.py
+    # Press 'q' to quit
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Technology Stack
+
+### Frontend
+
+<CardGroup cols={3}>
+  <Card title="HTML5" icon="html5">
+    Semantic structure, video element, canvas API
+  </Card>
+  
+  <Card title="JavaScript (ES6+)" icon="js">
+    Async/await, MediaDevices API, Fetch API
+  </Card>
+  
+  <Card title="CSS3" icon="css3">
+    Modern styling, animations, responsive design
+  </Card>
+</CardGroup>
+
+### Backend
+
+<CardGroup cols={3}>
+  <Card title="Python 3" icon="python">
+    Core language for all backend logic
+  </Card>
+  
+  <Card title="Flask" icon="flask">
+    Lightweight web framework for API
+  </Card>
+  
+  <Card title="OpenCV" icon="eye">
+    Computer vision and facial analysis
+  </Card>
+</CardGroup>
+
+### Machine Learning
+
+<CardGroup cols={3}>
+  <Card title="scikit-learn" icon="brain">
+    Random Forest classifier, metrics
+  </Card>
+  
+  <Card title="NumPy" icon="chart-simple">
+    Numerical computing and arrays
+  </Card>
+  
+  <Card title="Pickle" icon="box-archive">
+    Model serialization
+  </Card>
+</CardGroup>
+
+### External Services
+
+<Card title="Google Gemini AI" icon="google">
+  Generative AI for empathetic session analysis (gemini-2.5-flash model)
+</Card>
+
+## Deployment Considerations
+
+### Local Development
+
+```bash
+# Start Flask server
+python app.py
+
+# Access at http://127.0.0.1:5000/
+```
+
+<Note>
+Must access via `http://` (not `file://`) for webcam permissions to work.
+</Note>
+
+### Production Deployment
+
+<Warning>
+**Not Production-Ready**
+
+The current implementation uses Flask's development server (`app.run(debug=True)`), which is not suitable for production.
+
+For production, consider:
+- WSGI server (Gunicorn, uWSGI)
+- Reverse proxy (Nginx)
+- HTTPS for camera access
+- Environment-based configuration
+- Proper error logging
+- Rate limiting
+- Authentication if needed
+</Warning>
+
+### Environment Variables
+
+```bash
+# Required for Gemini AI integration
+export GEMINI_API_KEY="your-api-key-here"
+```
+
+### Dependencies
+
+```txt
+flask
+opencv-contrib-python  # Must have contrib for cv2.face module
+numpy
+scikit-learn
+google-genai  # For Gemini AI integration
+```
+
+<Tip>
+Use `opencv-contrib-python` (not `opencv-python`) to get the `cv2.face` module required for LBF landmarks.
+</Tip>
+
+## Performance Characteristics
+
+### Latency Breakdown
+
+Typical processing time for one frame:
+
+| Stage | Time | Notes |
+|-------|------|-------|
+| Network transfer | 10-50ms | Depends on connection |
+| Base64 decode | 5-10ms | Image size dependent |
+| Face detection | 10-30ms | Varies with image complexity |
+| Landmark extraction | 20-40ms | Fixed 68 points |
+| Normalization | &lt;1ms | Simple math operations |
+| Model prediction | &lt;1ms | Random Forest inference |
+| Response encoding | &lt;1ms | Small JSON payload |
+| **Total** | **50-130ms** | Well under 1 second budget |
+
+### Scalability
+
+**Current Limitations:**
+- Synchronous processing (one request at a time)
+- No request queuing
+- Single-threaded Flask server
+- No caching
+
+**Scaling Strategies:**
+- Use production WSGI server with multiple workers
+- Implement request queuing (Celery, RQ)
+- Cache model in shared memory
+- Use GPU for OpenCV operations (if available)
+- CDN for static assets
+
+## Security Considerations
+
+<Warning>
+**Privacy & Security**
+
+1. **No Data Persistence**: Images are processed in-memory and not saved
+2. **Local Processing**: Facial analysis happens server-side, not sent to external services
+3. **Gemini Privacy**: Session emotions + context are sent to Google's API
+4. **No Authentication**: Current implementation has no user auth
+5. **No Rate Limiting**: Vulnerable to abuse without limits
+6. **Debug Mode**: Should be disabled in production
+</Warning>
+
+### Data Privacy
+
+From the UI (`index.html:207`):
+```html
+<p class="fineprint">
+  Tus datos faciales <strong>no</strong> se guardan. 
+  Solo se analizan en tiempo real para mostrarte la emoción.
+</p>
+```
+
+This is accurate - images are decoded, processed, and discarded without persistence.
+
+## Error Handling
+
+### Client-Side Errors
+
+```javascript
+// Camera access denied
+if (error.name === 'NotAllowedError') {
+    alert('Permiso de cámara denegado...');
+}
+
+// Camera already in use
+if (error.name === 'NotReadableError') {
+    alert('Otra aplicación está usando la cámara...');
+}
+```
+
+### Server-Side Errors
+
+```python
+# Missing model file
+if not os.path.isfile(model_path):
+    raise FileNotFoundError(
+        f"No se encontró el modelo entrenado en '{model_path}'. "
+        f"Ejecuta antes 'train_model.py'."
+    )
+
+# Gemini API errors
+except Exception as e:
+    if "API key" in str(e).lower():
+        return jsonify({'error': 'Falta configurar tu GEMINI_API_KEY...'}), 500
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Emotion Recognition" icon="face-smile" href="/concepts/emotion-recognition">
+    Deep dive into facial landmark detection
+  </Card>
+  
+  <Card title="ML Model" icon="brain" href="/concepts/ml-model">
+    Understand the Random Forest classifier
+  </Card>
+</CardGroup>

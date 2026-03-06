@@ -1,0 +1,297 @@
+---
+title: 'Model Training'
+description: 'Train the Random Forest classifier for emotion recognition'
+icon: 'brain'
+---
+
+The model training process takes the prepared facial landmark data and trains a Random Forest classifier to recognize emotions.
+
+## Overview
+
+The `train_model.py` script loads the preprocessed data from `data.txt`, splits it into training and testing sets, trains a Random Forest classifier, evaluates its performance, and saves the trained model to disk.
+
+## Prerequisites
+
+Before training the model, ensure you have:
+
+<Check>Completed the [Data Preparation](/training/data-preparation) step</Check>
+<Check>Generated `data.txt` with sufficient training samples</Check>
+<Check>At least two different emotion classes in your dataset</Check>
+
+## Training Workflow
+
+<Steps>
+  <Step title="Verify data.txt exists">
+    Ensure `data.txt` is present in the `source/` directory:
+    
+    ```bash
+    ls -lh source/data.txt
+    ```
+  </Step>
+  
+  <Step title="Run the training script">
+    Execute the training script:
+    
+    ```bash
+    cd source
+    python train_model.py
+    ```
+  </Step>
+  
+  <Step title="Review training results">
+    The script will output:
+    - Accuracy percentage
+    - Confusion matrix showing prediction performance
+  </Step>
+  
+  <Step title="Verify model file">
+    Check that the `model` file was created:
+    
+    ```bash
+    ls -lh source/model
+    ```
+  </Step>
+</Steps>
+
+## How It Works
+
+### Loading Training Data
+
+The script loads the preprocessed data from `data.txt`:
+
+```python
+data_file = "data.txt"
+
+if not os.path.isfile(data_file):
+    raise FileNotFoundError(
+        f"No se encontró '{data_file}'. Ejecuta primero 'prepare_data.py' para generarlo."
+    )
+
+data = np.loadtxt(data_file)
+
+if data.ndim == 1:
+    # Only one sample -> reshape to (1, n_features)
+    data = data.reshape(1, -1)
+```
+
+### Feature and Label Separation
+
+The data is split into features (X) and labels (y):
+
+```python
+# Separate into features (X) and labels (y)
+X = data[:, :-1]  # All columns except the last (136 facial landmarks)
+y = data[:, -1].astype(int)  # Last column (emotion label: 0 or 1)
+```
+
+### Train/Test Split Configuration
+
+The dataset is divided into training (80%) and testing (20%) sets:
+
+```python
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,        # 20% for testing
+    random_state=42,      # Reproducible results
+    shuffle=True,         # Randomize samples
+    stratify=y,           # Maintain class proportions
+)
+```
+
+<Note>
+`stratify=y` ensures both training and testing sets have proportional representation of each emotion class.
+</Note>
+
+### Random Forest Classifier Parameters
+
+The model uses a Random Forest classifier with optimized parameters:
+
+```python
+rf_classifier = RandomForestClassifier(
+    n_estimators=200,     # 200 decision trees
+    max_depth=None,       # No depth limit (trees grow until pure)
+    n_jobs=-1,            # Use all CPU cores
+    random_state=42,      # Reproducible results
+)
+```
+
+#### Parameter Explanation
+
+| Parameter | Value | Purpose |
+|-----------|-------|----------|
+| `n_estimators` | 200 | Number of decision trees in the forest. More trees generally improve accuracy but increase training time. |
+| `max_depth` | None | Maximum depth of each tree. `None` allows trees to expand until all leaves are pure. |
+| `n_jobs` | -1 | Number of parallel jobs. `-1` uses all available CPU cores for faster training. |
+| `random_state` | 42 | Seed for reproducibility. Ensures consistent results across runs. |
+
+### Training the Model
+
+The classifier is trained on the training set:
+
+```python
+rf_classifier.fit(X_train, y_train)
+```
+
+### Evaluation Metrics
+
+#### Accuracy Score
+
+The model's accuracy is calculated on the test set:
+
+```python
+y_pred = rf_classifier.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+
+print(f"Accuracy: {accuracy * 100:.2f}%")
+```
+
+A typical output might look like:
+```
+Accuracy: 87.50%
+```
+
+<Info>
+Accuracy above 80% indicates good model performance. Below 70% suggests you may need more training data or better quality images.
+</Info>
+
+#### Confusion Matrix
+
+The confusion matrix shows how well the model distinguishes between emotions:
+
+```python
+print(confusion_matrix(y_test, y_pred))
+```
+
+Example output:
+```
+[[12  2]
+ [ 1 13]]
+```
+
+This means:
+- 12 happy images correctly classified as happy
+- 2 happy images incorrectly classified as sad
+- 1 sad image incorrectly classified as happy
+- 13 sad images correctly classified as sad
+
+### Saving the Model
+
+The trained model is serialized and saved:
+
+```python
+with open("./model", "wb") as f:
+    pickle.dump(rf_classifier, f)
+```
+
+The `model` file can now be used by the testing script and the main application.
+
+## Understanding Results
+
+### Good Results
+
+- Accuracy: 80-95%
+- Confusion matrix shows high diagonal values (correct predictions)
+- Minimal off-diagonal values (misclassifications)
+
+### Poor Results
+
+If accuracy is below 70% or the confusion matrix shows many errors:
+
+<AccordionGroup>
+  <Accordion title="Insufficient Training Data">
+    Add more images to both emotion categories. Aim for at least 50-100 images per emotion.
+  </Accordion>
+  
+  <Accordion title="Poor Image Quality">
+    Review your training images. Remove blurry, poorly lit, or obscured faces.
+  </Accordion>
+  
+  <Accordion title="Imbalanced Dataset">
+    Ensure you have roughly equal numbers of images for each emotion.
+  </Accordion>
+  
+  <Accordion title="Similar Expressions">
+    Some emotions may be hard to distinguish. Ensure your training images have clear, distinct expressions.
+  </Accordion>
+</AccordionGroup>
+
+## Customizing Training Parameters
+
+You can modify the Random Forest parameters to experiment with performance:
+
+<CodeGroup>
+```python More Trees (Higher Accuracy)
+rf_classifier = RandomForestClassifier(
+    n_estimators=500,     # More trees for better accuracy
+    max_depth=None,
+    n_jobs=-1,
+    random_state=42,
+)
+```
+
+```python Faster Training (Limited Depth)
+rf_classifier = RandomForestClassifier(
+    n_estimators=100,     # Fewer trees
+    max_depth=10,         # Limit tree depth
+    n_jobs=-1,
+    random_state=42,
+)
+```
+
+```python Balanced Approach
+rf_classifier = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=20,         # Moderate depth limit
+    min_samples_split=5,  # Require more samples to split
+    n_jobs=-1,
+    random_state=42,
+)
+```
+</CodeGroup>
+
+## Troubleshooting
+
+### "No se encontró 'data.txt'"
+
+**Problem**: The data file doesn't exist.
+
+**Solution**: Run `prepare_data.py` first to generate the training data:
+```bash
+python prepare_data.py
+```
+
+### "El archivo 'data.txt' no tiene suficiente número de columnas"
+
+**Problem**: The data file is corrupted or empty.
+
+**Solution**: Delete `data.txt` and re-run `prepare_data.py` with valid training images.
+
+### "Se necesita al menos dos clases diferentes"
+
+**Problem**: All training images are from the same emotion.
+
+**Solution**: Add images to both `happy/` and `sad/` folders, then re-run `prepare_data.py`.
+
+### Low Accuracy
+
+**Problem**: Model accuracy is below 70%.
+
+**Solution**:
+1. Add more diverse training images
+2. Ensure images have clear, visible faces
+3. Balance the number of images per emotion
+4. Increase `n_estimators` to 300-500
+
+### Training Takes Too Long
+
+**Problem**: Training is very slow.
+
+**Solution**:
+- Reduce `n_estimators` to 100-150
+- Set `max_depth=15` to limit tree growth
+- Ensure `n_jobs=-1` is set to use all CPU cores
+
+## Next Steps
+
+Once you've successfully trained the model with satisfactory accuracy, proceed to [Testing](/training/testing) to verify real-time emotion recognition.

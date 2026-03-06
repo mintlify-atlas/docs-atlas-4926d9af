@@ -1,0 +1,401 @@
+---
+title: 'POST /analyze_session'
+description: 'Get AI-powered empathetic analysis of emotion tracking session'
+---
+
+## Endpoint
+
+```
+POST /analyze_session
+```
+
+Analyzes a 30-second emotion tracking session using Google's Gemini AI to provide empathetic feedback based on detected emotion fluctuations.
+
+## Request Format
+
+### Headers
+```
+Content-Type: application/json
+```
+
+### Body Parameters
+
+<ParamField body="context" type="string" required>
+  User-provided context describing what they were talking about during the session. This helps the AI understand the emotional responses.
+  
+  Example: "I was talking about my new job" or "Discussing my recent vacation"
+</ParamField>
+
+<ParamField body="emotions" type="array" required>
+  Array of emotion strings detected second-by-second during the 30-second session. Each element represents the emotion detected at that moment.
+  
+  **Possible values**: `"HAPPY"`, `"SAD"`, `"No face detected"`
+  
+  **Length**: Typically ~30 elements (one per second)
+</ParamField>
+
+### Example Request Body
+
+```json
+{
+  "context": "I was talking about my recent promotion at work",
+  "emotions": [
+    "HAPPY",
+    "HAPPY",
+    "HAPPY",
+    "SAD",
+    "HAPPY",
+    "No face detected",
+    "HAPPY",
+    "HAPPY",
+    "SAD",
+    "HAPPY"
+  ]
+}
+```
+
+## Response Format
+
+### Success Response (200 OK)
+
+<ResponseField name="analysis" type="string">
+  AI-generated empathetic analysis of the emotional fluctuations. The response:
+  - Analyzes what the emotion changes might mean given the context
+  - Provides supportive and encouraging feedback
+  - Offers positive reminders to uplift the user's mood
+  - Limited to 2 paragraphs maximum for conciseness
+</ResponseField>
+
+#### Example Success Response
+
+```json
+{
+  "analysis": "Hablando sobre tu reciente ascenso laboral, es completamente natural que experimentes una mezcla de emociones. Los momentos de felicidad predominantes reflejan el orgullo y la satisfacción por tu logro, mientras que los breves instantes de tristeza podrían relacionarse con la ansiedad por las nuevas responsabilidades o la nostalgia por tu antiguo rol. Esta fluctuación emocional es señal de que estás procesando un cambio importante de manera saludable.\n\nRecuerda que este ascenso es el reconocimiento de tu esfuerzo y talento. Es normal sentir cierta preocupación, pero confía en las habilidades que te han traído hasta aquí. Celebra este logro y date permiso para adaptarte a tu nueva posición con paciencia y autocompasión."
+}
+```
+
+### Error Responses
+
+#### 400 Bad Request - Missing Context
+
+```json
+{
+  "error": "No context provided"
+}
+```
+
+#### 500 Internal Server Error - Missing Gemini Library
+
+```json
+{
+  "error": "La librería google-genai no está instalada o configurada. Por favor instala con pip install google-genai"
+}
+```
+
+#### 500 Internal Server Error - Missing API Key
+
+```json
+{
+  "error": "Falta configurar tu GEMINI_API_KEY. Configúrala como variable de entorno o en el archivo app.py."
+}
+```
+
+#### 500 Internal Server Error - General Error
+
+```json
+{
+  "error": "Error usando Gemini: <error details>"
+}
+```
+
+## Implementation Details
+
+The endpoint implementation from `app.py:59-92`:
+
+```python
+@app.route('/analyze_session', methods=['POST'])
+def analyze_session():
+    try:
+        data = request.json
+        context = data.get('context', '')
+        emotions_array = data.get('emotions', [])
+        
+        if not context:
+            return jsonify({'error': 'No context provided'}), 400
+            
+        import sys
+        try:
+            from google import genai
+            # Initialize client. The user needs to have GEMINI_API_KEY environment variable set.
+            client = genai.Client(api_key="")
+            prompt = f"El usuario acaba de tener una sesión de 30 segundos hablando a una cámara sobre el siguiente tema/contexto:\n\n'{context}'\n\nDurante este tiempo, la IA detectó segundo a segundo la siguiente secuencia de emociones en su rostro:\n{emotions_array}\n\nActúa como un asistente muy empático. Analiza brevemente qué significa esta fluctuación de emociones dado el contexto y, lo más importante, brinda un mensaje de mucho apoyo o recuérdale algo positivo y bonito al usuario para subirle el ánimo. Da una respuesta cálida y concisa (máximo 2 párrafos)."
+            
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            
+            return jsonify({'analysis': response.text})
+            
+        except ImportError:
+            return jsonify({'error': 'La librería google-genai no está instalada o configurada. Por favor instala con pip install google-genai'}), 500
+        except Exception as e:
+            if "API key" in str(e).lower() or "credentials" in str(e).lower():
+                return jsonify({'error': 'Falta configurar tu GEMINI_API_KEY. Configúrala como variable de entorno o en el archivo app.py.'}), 500
+            return jsonify({'error': f'Error usando Gemini: {str(e)}'}), 500
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+```
+
+## Gemini AI Integration
+
+### Model Used
+- **Model**: `gemini-2.5-flash`
+- **Provider**: Google Generative AI
+- **Purpose**: Generate empathetic, context-aware emotional analysis
+
+### Prompt Structure
+
+The AI prompt is structured in Spanish and includes:
+1. **Context**: User's topic/subject of discussion
+2. **Emotion sequence**: Second-by-second emotion detections
+3. **Instructions**: Act as an empathetic assistant
+4. **Requirements**: Analyze fluctuations and provide supportive message (max 2 paragraphs)
+
+### API Key Configuration
+
+The Gemini API requires authentication. Configure your API key by:
+
+**Option 1: Environment Variable (Recommended)**
+```bash
+export GEMINI_API_KEY="your-api-key-here"
+python app.py
+```
+
+**Option 2: Modify app.py**
+```python
+client = genai.Client(api_key="your-api-key-here")
+```
+
+## Code Examples
+
+### JavaScript (Frontend)
+
+```javascript
+async function analyzeSession(context, emotionsArray) {
+  try {
+    const response = await fetch('/analyze_session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        context: context,
+        emotions: emotionsArray
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      console.log('AI Analysis:', data.analysis);
+      return data.analysis;
+    } else {
+      console.error('Error:', data.error);
+      throw new Error(data.error);
+    }
+  } catch (error) {
+    console.error('Failed to analyze session:', error);
+    throw error;
+  }
+}
+
+// Usage example
+const context = "I was discussing my weekend plans";
+const emotions = ["HAPPY", "HAPPY", "SAD", "HAPPY", "HAPPY"];
+
+analyzeSession(context, emotions)
+  .then(analysis => {
+    document.getElementById('analysis-result').innerText = analysis;
+  });
+```
+
+### cURL
+
+```bash
+curl -X POST http://127.0.0.1:5000/analyze_session \
+  -H "Content-Type: application/json" \
+  -d '{
+    "context": "Talking about my family",
+    "emotions": ["HAPPY", "HAPPY", "SAD", "HAPPY", "HAPPY", "SAD"]
+  }'
+```
+
+### Python
+
+```python
+import requests
+
+# Prepare session data
+context = "Discussing my recent achievement"
+emotions = ["HAPPY"] * 20 + ["SAD"] * 5 + ["HAPPY"] * 5
+
+# Send request
+response = requests.post(
+    'http://127.0.0.1:5000/analyze_session',
+    json={
+        'context': context,
+        'emotions': emotions
+    }
+)
+
+# Parse response
+result = response.json()
+if response.status_code == 200:
+    print("AI Analysis:")
+    print(result['analysis'])
+else:
+    print(f"Error: {result.get('error', 'Unknown error')}")
+```
+
+### Complete Session Flow
+
+```javascript
+class EmotionTracker {
+  constructor() {
+    this.emotions = [];
+    this.sessionDuration = 30000; // 30 seconds
+    this.captureInterval = 1000;  // 1 second
+  }
+  
+  async startSession(context) {
+    this.emotions = [];
+    
+    // Capture emotions every second for 30 seconds
+    const intervalId = setInterval(async () => {
+      const emotion = await this.captureEmotion();
+      this.emotions.push(emotion);
+    }, this.captureInterval);
+    
+    // Stop after 30 seconds and analyze
+    setTimeout(async () => {
+      clearInterval(intervalId);
+      const analysis = await this.analyzeSession(context);
+      console.log('Session complete!', analysis);
+    }, this.sessionDuration);
+  }
+  
+  async captureEmotion() {
+    const imageData = this.captureWebcam();
+    const response = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageData })
+    });
+    const data = await response.json();
+    return data.emotion;
+  }
+  
+  async analyzeSession(context) {
+    const response = await fetch('/analyze_session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        context: context,
+        emotions: this.emotions
+      })
+    });
+    const data = await response.json();
+    return data.analysis;
+  }
+}
+
+// Usage
+const tracker = new EmotionTracker();
+tracker.startSession("Talking about my goals for 2026");
+```
+
+## Response Characteristics
+
+### Language
+- **Default**: Spanish (responses are in Spanish)
+- The AI prompt is designed for Spanish-language empathetic responses
+
+### Tone
+- Warm and supportive
+- Empathetic and understanding
+- Encouraging and positive
+- Professional yet friendly
+
+### Length
+- Maximum 2 paragraphs
+- Concise and focused
+- Typically 100-200 words
+
+## Error Scenarios
+
+### Missing Context
+Request must include a non-empty `context` field:
+```json
+{"context": "", "emotions": ["HAPPY"]}  // Returns 400 error
+```
+
+### Empty Emotions Array
+While not explicitly validated, an empty emotions array will result in less meaningful analysis:
+```json
+{"context": "My day", "emotions": []}  // Will still process but analysis may be generic
+```
+
+### API Rate Limiting
+Google Gemini API may enforce rate limits. Handle appropriately:
+```javascript
+try {
+  const analysis = await analyzeSession(context, emotions);
+} catch (error) {
+  if (error.message.includes('rate limit')) {
+    // Retry after delay
+  }
+}
+```
+
+## Dependencies
+
+### Required Python Packages
+```bash
+pip install google-genai
+```
+
+### Environment Setup
+```bash
+# Set API key
+export GEMINI_API_KEY="your-key-here"
+
+# Run application
+python app.py
+```
+
+## Privacy & Security
+
+- **Data transmission**: Context and emotions are sent to Google's Gemini API
+- **API key**: Store securely, never commit to version control
+- **User data**: No emotion data is stored on the server
+- **Session scope**: Each request is independent, no session persistence
+
+## Testing
+
+Test the endpoint:
+
+1. **Start the server**:
+   ```bash
+   python app.py
+   ```
+
+2. **Test with sample data**:
+   ```bash
+   curl -X POST http://127.0.0.1:5000/analyze_session \
+     -H "Content-Type: application/json" \
+     -d '{"context": "test", "emotions": ["HAPPY", "SAD"]}'
+   ```
+
+3. **Verify API key is configured** if you receive authentication errors

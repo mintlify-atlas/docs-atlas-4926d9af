@@ -1,0 +1,186 @@
+---
+title: 'Model Interface'
+description: 'Load and use the trained emotion recognition model'
+---
+
+## Overview
+
+The emotion recognition model is a scikit-learn classifier trained to predict emotions from facial landmark features. The model is serialized using Python's `pickle` module and stored in the `model` file.
+
+## Loading the Model
+
+The model is loaded at application startup in `app.py:28-29`:
+
+```python
+import pickle
+
+model_path = "./model"
+with open(model_path, "rb") as f:
+    model = pickle.load(f)
+```
+
+### Error Handling
+
+If the model file is missing, the application raises a clear error:
+
+```python
+if not os.path.isfile(model_path):
+    raise FileNotFoundError(
+        f"No se encontró el modelo entrenado en '{model_path}'. "
+        f"Ejecuta antes 'train_model.py'."
+    )
+```
+
+## Model Interface
+
+### predict() Method
+
+The model follows the standard scikit-learn interface:
+
+```python
+output = model.predict([face_landmarks])
+```
+
+<ParamField path="features" type="List[List[float]]" required>
+  A 2D array where each row contains 136 facial landmark features (68 points × 2 coordinates). Typically passed as a single-element list: `[face_landmarks]`.
+</ParamField>
+
+<ResponseField name="predictions" type="numpy.ndarray">
+  Returns an array of emotion indices. For a single prediction, access the result with `output[0]`.
+  
+  **Emotion Indices:**
+  - `0` = HAPPY
+  - `1` = SAD
+</ResponseField>
+
+## Emotion Mapping
+
+The emotion labels are defined in `app.py:19`:
+
+```python
+emotions = ["HAPPY", "SAD"]
+```
+
+| Index | Emotion | Description |
+|-------|---------|-------------|
+| 0     | HAPPY   | Positive, joyful expression |
+| 1     | SAD     | Negative, sorrowful expression |
+
+## Usage Example
+
+### Complete Prediction Pipeline
+
+```python
+import pickle
+import cv2
+from utils import get_face_landmarks
+
+# 1. Load the model
+with open("./model", "rb") as f:
+    model = pickle.load(f)
+
+# 2. Define emotion labels
+emotions = ["HAPPY", "SAD"]
+
+# 3. Load and process an image
+image = cv2.imread("photo.jpg")
+face_landmarks = get_face_landmarks(image, draw=False, static_image_mode=True)
+
+# 4. Make prediction
+if len(face_landmarks) > 0:
+    output = model.predict([face_landmarks])
+    emotion_index = int(output[0])
+    
+    # 5. Map to emotion label
+    if 0 <= emotion_index < len(emotions):
+        emotion = emotions[emotion_index]
+        print(f"Detected emotion: {emotion}")
+    else:
+        print("Unknown emotion index")
+else:
+    print("No face detected")
+```
+
+### Batch Prediction
+
+```python
+import pickle
+import cv2
+from utils import get_face_landmarks
+
+# Load model
+with open("./model", "rb") as f:
+    model = pickle.load(f)
+
+emotions = ["HAPPY", "SAD"]
+
+# Process multiple images
+images = ["photo1.jpg", "photo2.jpg", "photo3.jpg"]
+all_features = []
+
+for img_path in images:
+    image = cv2.imread(img_path)
+    landmarks = get_face_landmarks(image)
+    if len(landmarks) > 0:
+        all_features.append(landmarks)
+
+# Batch prediction
+if len(all_features) > 0:
+    predictions = model.predict(all_features)
+    for i, pred in enumerate(predictions):
+        emotion = emotions[int(pred)]
+        print(f"Image {i+1}: {emotion}")
+```
+
+### Integration with Flask Endpoint
+
+This is how the model is used in the actual `/predict` endpoint (`app.py:50-51`):
+
+```python
+face_landmarks = get_face_landmarks(frame, draw=False, static_image_mode=True)
+
+if len(face_landmarks) > 0:
+    output = model.predict([face_landmarks])
+    emotion = emotions[int(output[0])] if 0 <= int(output[0]) < len(emotions) else "UNKNOWN"
+    return jsonify({'emotion': emotion})
+```
+
+## Model Requirements
+
+### Input Format
+- **Type**: List of 136 float values
+- **Structure**: `[x1, y1, x2, y2, ..., x68, y68]`
+- **Normalization**: Coordinates normalized to 0.0-1.0 range
+- **Source**: Output from `get_face_landmarks()`
+
+### Output Format
+- **Type**: numpy.ndarray
+- **Shape**: `(n_samples,)` for n predictions
+- **Values**: Integer indices (0 or 1 for current model)
+
+## Model Training
+
+To train or retrain the model, run:
+
+```bash
+python train_model.py
+```
+
+This will generate a new `model` file with the trained classifier.
+
+## Model File Location
+
+The model file is expected at:
+```
+./model
+```
+
+Relative to the application root directory where `app.py` is located.
+
+## Technical Details
+
+- **Format**: Python pickle (protocol version depends on training environment)
+- **Framework**: scikit-learn (exact classifier type determined during training)
+- **Feature dimension**: 136 (68 facial landmarks × 2 coordinates)
+- **Output classes**: 2 (HAPPY, SAD)
+- **Thread safety**: Model predictions are thread-safe in scikit-learn

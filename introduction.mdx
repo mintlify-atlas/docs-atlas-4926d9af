@@ -1,0 +1,149 @@
+---
+title: "Introduction"
+description: "Real-time emotion recognition AI using facial analysis, machine learning, and empathetic feedback"
+---
+
+<img
+  className="block"
+  src="https://media.brand.dev/b59c5e8b-9bf1-4e64-93e2-f33d66921643.png"
+  alt="EmoChat Hero"
+  style={{ borderRadius: '8px', maxWidth: '200px', margin: '0 auto 2rem' }}
+/>
+
+# Welcome to EmoChat
+
+EmoChat is an AI-powered emotion recognition system that analyzes facial expressions in real-time to detect and understand human emotions. Built with OpenCV, scikit-learn, and Google Gemini AI, it provides empathetic feedback and emotional insights.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="Real-time Detection"
+    icon="video"
+    href="/concepts/emotion-recognition"
+  >
+    Analyze emotions through webcam with instant facial landmark detection
+  </Card>
+  <Card
+    title="Machine Learning"
+    icon="brain"
+    href="/concepts/ml-model"
+  >
+    Random Forest classifier trained on facial expression patterns
+  </Card>
+  <Card
+    title="Privacy-Focused"
+    icon="shield"
+    href="/webapp/flask-server"
+  >
+    No data storage - all processing happens locally in real-time
+  </Card>
+  <Card
+    title="Empathetic AI"
+    icon="heart"
+    href="/webapp/gemini-integration"
+  >
+    Google Gemini AI provides supportive emotional analysis
+  </Card>
+</CardGroup>
+
+## What You Can Do
+
+EmoChat enables you to:
+
+- **Detect Emotions**: Recognize Happy and Sad emotions from facial expressions
+- **Track Sessions**: Record 30-second emotion tracking sessions
+- **Get Insights**: Receive empathetic feedback from AI based on emotional patterns
+- **Train Custom Models**: Prepare and train your own emotion recognition models
+- **Build Applications**: Integrate emotion detection into web applications
+
+## How It Works
+
+<Steps>
+  <Step title="Facial Landmark Detection">
+    OpenCV detects faces and extracts 68 facial landmark points using Haar Cascade and LBF models
+  </Step>
+  <Step title="Feature Normalization">
+    Landmark coordinates are normalized relative to face boundaries for consistency
+  </Step>
+  <Step title="ML Classification">
+    Random Forest classifier analyzes normalized features to predict emotions
+  </Step>
+  <Step title="Real-time Feedback">
+    Results are displayed instantly with optional AI-powered emotional analysis
+  </Step>
+</Steps>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Mental Health Support">
+    Track emotional patterns during therapy sessions or personal reflection exercises
+  </Accordion>
+  <Accordion title="User Experience Research">
+    Analyze user reactions to products, interfaces, or content in real-time
+  </Accordion>
+  <Accordion title="Education & Training">
+    Learn about computer vision, machine learning, and emotion recognition systems
+  </Accordion>
+  <Accordion title="Accessibility Tools">
+    Build applications that respond to users' emotional states
+  </Accordion>
+</AccordionGroup>
+
+## Quick Start
+
+Get up and running in minutes:
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart Guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Launch the web app and start detecting emotions
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install dependencies and set up your environment
+  </Card>
+  <Card
+    title="Train Your Model"
+    icon="graduation-cap"
+    href="/training/data-preparation"
+  >
+    Prepare data and train custom emotion recognition models
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/get-face-landmarks"
+  >
+    Explore the core functions and HTTP endpoints
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+EmoChat is built with:
+
+- **OpenCV**: Face detection and landmark extraction
+- **scikit-learn**: Random Forest machine learning classifier
+- **Flask**: Web server and REST API
+- **Google Gemini AI**: Empathetic emotional analysis
+- **JavaScript**: Real-time webcam integration
+
+<Note>
+  All emotion processing happens locally on your machine. No facial data is stored or transmitted to external servers (except when using the optional Gemini AI analysis feature).
+</Note>
+
+## Community & Support
+
+- **GitHub Repository**: [Dani-zm/emotion-recognition-ai](https://github.com/Dani-zm/emotion-recognition-ai)
+- **Issues**: Report bugs or request features on GitHub
+- **Documentation**: Comprehensive guides and API reference
+
+Ready to get started? Head to the [Quickstart Guide](/quickstart) to launch your first emotion detection session.

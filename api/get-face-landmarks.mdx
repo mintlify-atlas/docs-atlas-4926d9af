@@ -1,0 +1,165 @@
+---
+title: 'get_face_landmarks()'
+description: 'Extract facial landmarks from images using OpenCV'
+---
+
+## Function Signature
+
+```python
+def get_face_landmarks(
+    image,
+    draw: bool = False,
+    static_image_mode: bool = True
+) -> List[float]
+```
+
+## Overview
+
+Extracts 2D facial landmarks using OpenCV's Haar Cascade detector and FacemarkLBF algorithm. This function detects faces in an image and returns 68 normalized landmark points as a flat list of coordinates.
+
+The function is located in `utils.py:59` and uses the following models:
+- **Haar Cascade** for face detection
+- **FacemarkLBF** for extracting 68 facial landmark points
+
+## Parameters
+
+<ParamField path="image" type="numpy.ndarray" required>
+  Input image in BGR color format (as read by OpenCV). Must be a 3-channel image with shape `(height, width, 3)`.
+</ParamField>
+
+<ParamField path="draw" type="bool" default={false}>
+  If `True`, draws green circles on the detected landmark points directly on the input image. Useful for visualization during development.
+</ParamField>
+
+<ParamField path="static_image_mode" type="bool" default={true}>
+  Included for API compatibility. Currently not used in the implementation but reserved for future enhancements.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="landmarks" type="List[float]">
+  Returns a flat list of normalized coordinates in the format:
+  ```
+  [x1_norm, y1_norm, x2_norm, y2_norm, ..., x68_norm, y68_norm]
+  ```
+  
+  - **Length**: 136 elements (68 points × 2 coordinates)
+  - **Normalization**: Coordinates are normalized relative to the face bounding box, ranging from 0.0 to 1.0
+  - **Empty list**: Returns `[]` if no face is detected or if the input image is invalid
+</ResponseField>
+
+## How It Works
+
+1. **Validation**: Checks if the input image is valid (3-channel BGR image)
+2. **Grayscale conversion**: Converts the image to grayscale for detection
+3. **Face detection**: Uses Haar Cascade to detect faces
+4. **Landmark extraction**: Applies FacemarkLBF to extract 68 landmark points
+5. **Normalization**: Normalizes coordinates relative to the face bounding box
+6. **Optional drawing**: If `draw=True`, visualizes landmarks on the image
+
+## Code Examples
+
+### Basic Usage
+
+```python
+import cv2
+from utils import get_face_landmarks
+
+# Read an image
+image = cv2.imread('photo.jpg')
+
+# Extract landmarks
+landmarks = get_face_landmarks(image)
+
+if len(landmarks) > 0:
+    print(f"Detected {len(landmarks) // 2} facial landmarks")
+    print(f"First point: ({landmarks[0]:.3f}, {landmarks[1]:.3f})")
+else:
+    print("No face detected")
+```
+
+### With Visualization
+
+```python
+import cv2
+from utils import get_face_landmarks
+
+# Read an image
+image = cv2.imread('photo.jpg')
+
+# Extract landmarks and draw them on the image
+landmarks = get_face_landmarks(image, draw=True)
+
+# Display the result
+if len(landmarks) > 0:
+    cv2.imshow('Facial Landmarks', image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+```
+
+### Processing Video Frames
+
+```python
+import cv2
+from utils import get_face_landmarks
+
+# Capture from webcam
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+    
+    # Get landmarks for each frame
+    landmarks = get_face_landmarks(frame, draw=False)
+    
+    if len(landmarks) > 0:
+        print(f"Frame processed: {len(landmarks) // 2} points detected")
+    
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+```
+
+## Model Auto-Download
+
+The function automatically downloads required models on first use:
+- `haarcascade_frontalface_default.xml` (Haar Cascade)
+- `lbfmodel.yaml` (FacemarkLBF model)
+
+Models are saved in the same directory as `utils.py`.
+
+## Error Handling
+
+### Invalid Image
+```python
+landmarks = get_face_landmarks(None)  # Returns []
+landmarks = get_face_landmarks(grayscale_image)  # Returns [] (needs 3 channels)
+```
+
+### No Face Detected
+```python
+landmarks = get_face_landmarks(image_without_face)  # Returns []
+```
+
+### Missing OpenCV Contrib Module
+```python
+# If opencv-contrib-python is not installed:
+# RuntimeError: Tu instalación de OpenCV no incluye el módulo `cv2.face`.
+# Instala `opencv-contrib-python` (no solo `opencv-python`):
+#     pip install opencv-contrib-python
+```
+
+## Dependencies
+
+- `opencv-contrib-python` (required for `cv2.face` module)
+- `numpy` (for array operations)
+
+## Performance Notes
+
+- **First call**: Slower due to model loading and potential downloads
+- **Subsequent calls**: Fast, models are cached in memory
+- **Single face**: Only the first detected face is processed
+- **Detection parameters**: `scaleFactor=1.1`, `minNeighbors=5` for Haar Cascade

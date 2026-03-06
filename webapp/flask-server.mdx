@@ -1,0 +1,219 @@
+---
+title: Flask Server
+description: Backend server architecture, route handlers, and model integration
+---
+
+## Overview
+
+The Flask server (`app.py`) is the backbone of EmoChat's web application. It serves the web interface, handles emotion prediction requests from the webcam feed, and integrates with Google Gemini AI for empathetic session analysis.
+
+## Architecture
+
+The Flask application is configured as follows:
+
+```python
+app = Flask(__name__, static_folder='.', static_url_path='')
+```
+
+This configuration serves static files (HTML, CSS, JS) from the root directory, making the application structure simple and self-contained.
+
+## Model Loading
+
+On startup, the server loads the pre-trained emotion recognition model:
+
+```python
+model_path = "./model"
+if not os.path.isfile(model_path):
+    raise FileNotFoundError(
+        f"No se encontró el modelo entrenado en '{model_path}'. "
+        f"Ejecuta antes 'train_model.py'."
+    )
+
+with open(model_path, "rb") as f:
+    model = pickle.load(f)
+```
+
+<Warning>
+The model file must exist before starting the server. Run `train_model.py` first to generate the model.
+</Warning>
+
+The server recognizes two emotion categories:
+
+```python
+emotions = ["HAPPY", "SAD"]
+```
+
+## API Endpoints
+
+### GET /
+
+Serves the main web interface.
+
+**Implementation:**
+```python
+@app.route('/')
+def index():
+    return send_from_directory('.', 'index.html')
+```
+
+**Response:** HTML page with the EmoChat interface
+
+---
+
+### POST /predict
+
+Processes webcam frames and returns the detected emotion in real-time.
+
+<ParamField body="image" type="string" required>
+  Base64-encoded image data URL from the webcam feed. Format: `data:image/jpeg;base64,<encoded_data>`
+</ParamField>
+
+**Request Example:**
+```json
+{
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD..."
+}
+```
+
+**Response (Success):**
+```json
+{
+  "emotion": "HAPPY"
+}
+```
+
+**Response (No Face):**
+```json
+{
+  "emotion": "No face detected"
+}
+```
+
+**Response (Error):**
+```json
+{
+  "error": "Error message"
+}
+```
+Status: `400` or `500`
+
+**Implementation:**
+```python
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        data = request.json
+        if 'image' not in data:
+            return jsonify({'error': 'No image provided'}), 400
+
+        # Decode base64 image
+        img_data = data['image'].split(',')[1]
+        nparr = np.frombuffer(base64.b64decode(img_data), np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        face_landmarks = get_face_landmarks(frame, draw=False, static_image_mode=True)
+
+        if len(face_landmarks) > 0:
+            output = model.predict([face_landmarks])
+            emotion = emotions[int(output[0])] if 0 <= int(output[0]) < len(emotions) else "UNKNOWN"
+            return jsonify({'emotion': emotion})
+        else:
+            return jsonify({'emotion': 'No face detected'})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+```
+
+**Processing Pipeline:**
+1. Decode base64 image data
+2. Extract facial landmarks using `get_face_landmarks()` from `utils.py`
+3. Feed landmarks to the ML model for prediction
+4. Map prediction to emotion label
+5. Return emotion as JSON
+
+---
+
+### POST /analyze_session
+
+Analyzes a 30-second emotion recording session and returns empathetic feedback from Google Gemini AI.
+
+<ParamField body="context" type="string" required>
+  User-provided context describing what they talked about during the session.
+</ParamField>
+
+<ParamField body="emotions" type="array" required>
+  Array of detected emotions throughout the 30-second session (one per second).
+</ParamField>
+
+**Request Example:**
+```json
+{
+  "context": "Me gustaría hablar sobre cómo me sentí hoy en el trabajo...",
+  "emotions": ["Tristeza", "Tristeza", "Alegría", "Tristeza", ...]
+}
+```
+
+**Response (Success):**
+```json
+{
+  "analysis": "Veo que durante tu reflexión sobre el trabajo hubo momentos de tristeza intercalados con alegría. Es completamente normal sentir esta mezcla..."
+}
+```
+
+**Response (Error):**
+```json
+{
+  "error": "Error message"
+}
+```
+Status: `400` or `500`
+
+See [Gemini Integration](/webapp/gemini-integration) for detailed implementation.
+
+## Error Handling
+
+The server implements comprehensive error handling:
+
+- **400 Bad Request**: Missing required parameters (image, context)
+- **500 Internal Server Error**: Model prediction failures, API errors, or unexpected exceptions
+
+All endpoints wrap logic in try-catch blocks and return JSON error responses:
+
+```python
+except Exception as e:
+    return jsonify({'error': str(e)}), 500
+```
+
+## Starting the Server
+
+Run the Flask development server:
+
+```bash
+python app.py
+```
+
+The server starts on `http://127.0.0.1:5000/` by default:
+
+```python
+if __name__ == '__main__':
+    print("Iniciando servidor Flask de EmoChat en http://127.0.0.1:5000/")
+    app.run(debug=True, port=5000)
+```
+
+<Warning>
+The server runs in debug mode (`debug=True`). This is suitable for development but should be disabled in production.
+</Warning>
+
+## Dependencies
+
+Key imports used by the Flask server:
+
+```python
+import os
+import pickle
+import base64
+import cv2
+import numpy as np
+from flask import Flask, request, jsonify, send_from_directory
+from utils import get_face_landmarks
+```

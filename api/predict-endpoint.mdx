@@ -1,0 +1,269 @@
+---
+title: 'POST /predict'
+description: 'Predict emotion from a webcam image'
+---
+
+## Endpoint
+
+```
+POST /predict
+```
+
+Analyzes a base64-encoded image and returns the detected emotion.
+
+## Request Format
+
+### Headers
+```
+Content-Type: application/json
+```
+
+### Body Parameters
+
+<ParamField body="image" type="string" required>
+  Base64-encoded image data in the format: `data:image/png;base64,<encoded_data>`
+  
+  The image should be captured from a webcam or uploaded as a data URL. The server automatically extracts the base64 portion after the comma.
+</ParamField>
+
+### Example Request Body
+
+```json
+{
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA..."
+}
+```
+
+## Response Format
+
+### Success Response (200 OK)
+
+<ResponseField name="emotion" type="string">
+  The detected emotion label. Possible values:
+  - `"HAPPY"` - Positive, joyful expression
+  - `"SAD"` - Negative, sorrowful expression
+  - `"No face detected"` - No face found in the image
+</ResponseField>
+
+#### Example Success Response
+
+```json
+{
+  "emotion": "HAPPY"
+}
+```
+
+#### No Face Detected Response
+
+```json
+{
+  "emotion": "No face detected"
+}
+```
+
+### Error Responses
+
+#### 400 Bad Request - Missing Image
+
+```json
+{
+  "error": "No image provided"
+}
+```
+
+#### 500 Internal Server Error
+
+```json
+{
+  "error": "Error description here"
+}
+```
+
+## Implementation Details
+
+The endpoint implementation from `app.py:35-57`:
+
+```python
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        data = request.json
+        if 'image' not in data:
+            return jsonify({'error': 'No image provided'}), 400
+
+        # Decode base64 image
+        img_data = data['image'].split(',')[1]
+        nparr = np.frombuffer(base64.b64decode(img_data), np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        face_landmarks = get_face_landmarks(frame, draw=False, static_image_mode=True)
+
+        if len(face_landmarks) > 0:
+            output = model.predict([face_landmarks])
+            emotion = emotions[int(output[0])] if 0 <= int(output[0]) < len(emotions) else "UNKNOWN"
+            return jsonify({'emotion': emotion})
+        else:
+            return jsonify({'emotion': 'No face detected'})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+```
+
+## Processing Pipeline
+
+1. **Request validation**: Checks for `image` field in JSON body
+2. **Base64 decoding**: Extracts and decodes the image data
+3. **Image decoding**: Converts base64 bytes to OpenCV image format
+4. **Landmark extraction**: Uses `get_face_landmarks()` to detect facial features
+5. **Emotion prediction**: Runs ML model on extracted landmarks
+6. **Response formatting**: Returns emotion label as JSON
+
+## Code Examples
+
+### JavaScript (Frontend)
+
+```javascript
+// Capture image from webcam
+const canvas = document.getElementById('canvas');
+const context = canvas.getContext('2d');
+context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+// Convert to base64
+const imageData = canvas.toDataURL('image/png');
+
+// Send to API
+fetch('/predict', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ image: imageData })
+})
+.then(response => response.json())
+.then(data => {
+  if (data.emotion) {
+    console.log('Detected emotion:', data.emotion);
+  } else if (data.error) {
+    console.error('Error:', data.error);
+  }
+})
+.catch(error => console.error('Request failed:', error));
+```
+
+### cURL
+
+```bash
+curl -X POST http://127.0.0.1:5000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA..."
+  }'
+```
+
+### Python
+
+```python
+import requests
+import base64
+import cv2
+
+# Read and encode image
+image = cv2.imread('photo.jpg')
+_, buffer = cv2.imencode('.png', image)
+base64_image = base64.b64encode(buffer).decode('utf-8')
+data_url = f"data:image/png;base64,{base64_image}"
+
+# Send request
+response = requests.post(
+    'http://127.0.0.1:5000/predict',
+    json={'image': data_url}
+)
+
+# Parse response
+result = response.json()
+if 'emotion' in result:
+    print(f"Emotion: {result['emotion']}")
+else:
+    print(f"Error: {result.get('error', 'Unknown error')}")
+```
+
+### JavaScript with Async/Await
+
+```javascript
+async function predictEmotion(imageDataURL) {
+  try {
+    const response = await fetch('/predict', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ image: imageDataURL })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      return data.emotion;
+    } else {
+      throw new Error(data.error || 'Unknown error');
+    }
+  } catch (error) {
+    console.error('Prediction failed:', error);
+    throw error;
+  }
+}
+
+// Usage
+const emotion = await predictEmotion(imageData);
+console.log('Detected:', emotion);
+```
+
+## Performance Considerations
+
+- **Processing time**: Typically 50-200ms per image depending on image size and hardware
+- **Image size**: Larger images take longer to process; consider resizing before sending
+- **Concurrent requests**: Flask's development server handles requests sequentially
+- **Model caching**: The ML model stays loaded in memory for fast predictions
+
+## Error Scenarios
+
+### Invalid Base64 Data
+If the base64 string is malformed:
+```json
+{
+  "error": "Invalid base64 data"
+}
+```
+
+### Corrupted Image
+If the image cannot be decoded:
+```json
+{
+  "error": "Failed to decode image"
+}
+```
+
+### Missing OpenCV Models
+If facial landmark models are not downloaded:
+```json
+{
+  "error": "Model files not found"
+}
+```
+
+## Rate Limiting
+
+The current implementation does not enforce rate limiting. For production use, consider implementing:
+- Request throttling
+- API key authentication
+- Request queuing for high traffic
+
+## Testing
+
+Test the endpoint with:
+
+```bash
+python app.py
+```
+
+Then access `http://127.0.0.1:5000/` in your browser to use the webcam interface, which internally calls this endpoint.

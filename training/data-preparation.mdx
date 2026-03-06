@@ -1,0 +1,193 @@
+---
+title: 'Data Preparation'
+description: 'Learn how to prepare training data for the EmoChat emotion recognition model'
+icon: 'database'
+---
+
+The data preparation process extracts facial landmarks from training images and generates a structured dataset that the model can learn from.
+
+## Overview
+
+The `prepare_data.py` script processes images organized in emotion-specific folders, extracts facial landmark coordinates using OpenCV, and saves the normalized data to `data.txt` for training.
+
+## Directory Structure
+
+Organize your training images in the following structure:
+
+```
+data/
+├── happy/
+│   ├── image1.jpg
+│   ├── image2.jpg
+│   └── ...
+└── sad/
+    ├── image1.jpg
+    ├── image2.jpg
+    └── ...
+```
+
+<Note>
+The `data/` directory should be located at the root of your project, parallel to the `source/` folder.
+</Note>
+
+## Supported Emotions
+
+Currently, EmoChat processes only two emotions:
+
+- **happy** (label: 0)
+- **sad** (label: 1)
+
+Folder names are case-insensitive, but must match these exact emotion names.
+
+<Warning>
+Only images in `happy/` and `sad/` folders will be processed. Other emotion folders will be ignored.
+</Warning>
+
+## Data Preparation Workflow
+
+<Steps>
+  <Step title="Create the data directory">
+    Create a `data/` folder at your project root with `happy/` and `sad/` subfolders:
+    
+    ```bash
+    mkdir -p data/happy data/sad
+    ```
+  </Step>
+  
+  <Step title="Add training images">
+    Place facial images into the respective emotion folders. Ensure:
+    - Images contain clearly visible faces
+    - Good lighting conditions
+    - Various angles and expressions
+    - At least 20-30 images per emotion for better results
+  </Step>
+  
+  <Step title="Run the preparation script">
+    Execute the data preparation script:
+    
+    ```bash
+    cd source
+    python prepare_data.py
+    ```
+  </Step>
+  
+  <Step title="Verify output">
+    Check that `data.txt` was created in the `source/` directory. This file contains the extracted features and labels.
+  </Step>
+</Steps>
+
+## How It Works
+
+### Loading Emotion Folders
+
+The script identifies valid emotion directories:
+
+```python
+ALLOWED_EMOTIONS = {"happy", "sad"}
+
+emotion_folders = [
+    e for e in sorted(os.listdir(data_dir))
+    if os.path.isdir(os.path.join(data_dir, e)) and e.lower() in ALLOWED_EMOTIONS
+]
+# Sorted to ensure consistent indices: happy=0, sad=1
+emotion_folders = sorted(emotion_folders, key=str.lower)
+```
+
+### Extracting Facial Landmarks
+
+For each image, the script:
+
+1. Reads the image using OpenCV
+2. Extracts facial landmarks (68 points × 2 coordinates = 136 features)
+3. Normalizes the coordinates
+4. Associates the data with an emotion label
+
+```python
+for emotion_indx, emotion in enumerate(emotion_folders):
+    emotion_path = os.path.join(data_dir, emotion)
+
+    for image_path_ in os.listdir(emotion_path):
+        image_path = os.path.join(emotion_path, image_path_)
+        
+        image = cv2.imread(image_path)
+        if image is None:
+            continue
+        
+        face_landmarks = get_face_landmarks(image)
+        
+        if len(face_landmarks) > 0:
+            sample = face_landmarks + [int(emotion_indx)]
+            output.append(sample)
+```
+
+### Generating data.txt
+
+The extracted features are saved to a text file:
+
+```python
+np.savetxt("data.txt", np.asarray(output))
+```
+
+Each row in `data.txt` contains:
+- 136 facial landmark coordinates (features)
+- 1 emotion label (0 for happy, 1 for sad)
+
+## Troubleshooting
+
+### "No se encontró el directorio de datos"
+
+**Problem**: The `data/` directory doesn't exist.
+
+**Solution**: Create the directory structure:
+```bash
+mkdir -p data/happy data/sad
+```
+
+### "No se encontraron carpetas 'happy' o 'sad'"
+
+**Problem**: The emotion folders are missing or misnamed.
+
+**Solution**: Ensure folders are named exactly `happy` and `sad` (case-insensitive).
+
+### "No se generaron muestras"
+
+**Problem**: No faces were detected in the images.
+
+**Solution**:
+- Verify images contain visible faces
+- Ensure images are not corrupted
+- Try images with better lighting and frontal faces
+- Check that OpenCV can read your image formats
+
+### Low Sample Count
+
+**Problem**: Only a few images were processed successfully.
+
+**Solution**:
+- Add more high-quality training images
+- Ensure faces are clearly visible and well-lit
+- Remove blurry or low-resolution images
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Image Quality" icon="image">
+    Use clear, well-lit images with visible facial features for better landmark detection.
+  </Card>
+  
+  <Card title="Dataset Size" icon="database">
+    Aim for at least 50-100 images per emotion for reliable model performance.
+  </Card>
+  
+  <Card title="Diversity" icon="users">
+    Include multiple people, angles, and lighting conditions to improve generalization.
+  </Card>
+  
+  <Card title="Balance" icon="scale-balanced">
+    Keep roughly equal numbers of images for each emotion to avoid bias.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+Once you've successfully generated `data.txt`, proceed to [Model Training](/training/model-training) to train your emotion recognition classifier.

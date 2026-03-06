@@ -1,80 +1,271 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Get EmoChat up and running in minutes"
 ---
 
-## Get started in three steps
+# Quickstart Guide
 
-Get your documentation site running locally and make your first customization.
+Get EmoChat emotion recognition AI running in just a few steps. This guide will take you from installation to your first real-time emotion detection session.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+Before starting, ensure you have:
+
+- Python 3.8 or higher installed
+- A webcam or camera device
+- Basic familiarity with command line
+- Windows, macOS, or Linux operating system
+
+## Quick Start Steps
+
+<Steps>
+  <Step title="Install Dependencies">
+    Clone the repository and install required Python packages:
+
+    ```bash
+    git clone https://github.com/Dani-zm/emotion-recognition-ai.git
+    cd emotion-recognition-ai
+    pip install -r requirements.txt
+    ```
+
+    <Warning>
+      Make sure to install `opencv-contrib-python` (not just `opencv-python`) as it includes the required `cv2.face` module for facial landmark detection.
+    </Warning>
+
+    The key dependencies include:
+    - Flask 3.1.3 - Web server
+    - opencv-contrib-python 4.13.0.92 - Computer vision
+    - scikit-learn 1.8.0 - Machine learning
+    - numpy 2.4.2 - Numerical computing
+  </Step>
+
+  <Step title="Prepare Training Data">
+    Create a data directory with emotion folders:
+
+    ```bash
+    mkdir -p ../data/happy ../data/sad
+    ```
+
+    Add training images to each folder:
+    - Place happy facial expression images in `../data/happy/`
+    - Place sad facial expression images in `../data/sad/`
+
+    <Tip>
+      Use at least 50-100 images per emotion for best results. Images should show clear facial expressions with good lighting.
+    </Tip>
+
+    Generate the training data file:
+
+    ```bash
+    python prepare_data.py
+    ```
+
+    This creates `data.txt` with normalized facial landmarks for each image.
+  </Step>
+
+  <Step title="Train the Model">
+    Train the Random Forest classifier:
+
+    ```bash
+    python train_model.py
+    ```
+
+    You'll see output like:
+
+    ```
+    Accuracy: 87.50%
+    [[45  5]
+     [ 3 47]]
+    ```
+
+    The model is saved as the `model` file in your project directory.
+
+    <Note>
+      Training typically takes 10-30 seconds depending on your dataset size. Aim for accuracy above 80% for reliable predictions.
+    </Note>
+  </Step>
+
+  <Step title="Launch Flask Server">
+    Start the web application server:
+
+    ```bash
+    python app.py
+    ```
+
+    You should see:
+
+    ```
+    Iniciando servidor Flask de EmoChat en http://127.0.0.1:5000/
+     * Running on http://127.0.0.1:5000
+     * Debug mode: on
+    ```
+
+    <Check>
+      The server is now running and ready to process webcam frames!
+    </Check>
+  </Step>
+
+  <Step title="Access Web Interface">
+    Open your web browser and navigate to:
+
+    ```
+    http://127.0.0.1:5000/
+    ```
+
+    You'll see the EmoChat web interface with:
+    - **Activate Camera** button to enable your webcam
+    - Real-time emotion detection display
+    - Session recording controls
+    - Context input for AI analysis
+  </Step>
+
+  <Step title="Use Real-Time Emotion Recognition">
+    In the web interface:
+
+    1. Click **Activate Camera** to start your webcam
+    2. Grant camera permissions when prompted
+    3. Your emotion will be detected and displayed in real-time
+    4. See "HAPPY" or "SAD" based on your facial expression
+
+    <Tip>
+      For best results, ensure good lighting and face the camera directly. The system detects 68 facial landmark points to classify your emotion.
+    </Tip>
+
+    **Optional: Record a Session**
+
+    1. Enter a context in the text field (e.g., "Talking about my day")
+    2. Click **Start Recording (30s)**
+    3. Express yourself for 30 seconds
+    4. Get empathetic AI feedback from Google Gemini
+  </Step>
+
+  <Step title="Optional: Configure Gemini AI">
+    To enable AI-powered emotional analysis:
+
+    1. Get a Google Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    2. Set the API key in `app.py`:
 
-### Step 2: Deploy your changes
+    ```python app.py
+    client = genai.Client(api_key="YOUR_API_KEY_HERE")
+    ```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    Or use an environment variable:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    ```bash
+    export GEMINI_API_KEY="your-api-key"
+    ```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    <Warning>
+      Without a Gemini API key, the session analysis feature will return an error. The basic emotion detection will still work.
+    </Warning>
+  </Step>
+</Steps>
 
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+## What's Next?
 
 <CardGroup cols={2}>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
+<Card title="Installation Details" icon="download" href="/installation">
+  Learn about system requirements, troubleshooting, and advanced setup
 </Card>
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
+<Card title="API Reference" icon="code" href="/api/predict-endpoint">
+  Explore the Flask API endpoints and integrate with your own applications
 </Card>
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
+<Card title="Model Training" icon="brain" href="/training/model-training">
+  Deep dive into the machine learning pipeline and improve accuracy
 </Card>
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
+<Card title="Web Application" icon="browser" href="/webapp/flask-server">
+  Learn about the Flask server and frontend integration
 </Card>
 
 </CardGroup>
 
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Camera Access Denied">
+    If the browser denies camera access:
+    - Click the camera icon in the address bar
+    - Allow camera permissions for localhost
+    - Refresh the page and try again
+    - Make sure no other application is using the camera
+  </Accordion>
+
+  <Accordion title="'No module named cv2.face' Error">
+    This means `opencv-contrib-python` is not installed:
+    
+    ```bash
+    pip uninstall opencv-python
+    pip install opencv-contrib-python==4.13.0.92
+    ```
+  </Accordion>
+
+  <Accordion title="Model File Not Found">
+    If you see "No se encontró el modelo entrenado":
+    
+    1. Make sure you ran `train_model.py` successfully
+    2. Check that the `model` file exists in your project directory
+    3. Verify the training completed without errors
+  </Accordion>
+
+  <Accordion title="Low Accuracy Predictions">
+    If emotions are detected incorrectly:
+    
+    - Ensure good lighting on your face
+    - Face the camera directly
+    - Use more diverse training images
+    - Retrain with a larger dataset (100+ images per emotion)
+    - Check that training accuracy was above 80%
+  </Accordion>
+</AccordionGroup>
+
+## Understanding the Detection Flow
+
+Here's what happens when you use EmoChat:
+
+1. **Webcam Capture**: JavaScript captures frames from your webcam every second
+2. **Base64 Encoding**: Images are encoded and sent to the Flask server via `/predict`
+3. **Face Detection**: OpenCV Haar Cascade detects faces in the image
+4. **Landmark Extraction**: 68 facial landmark points are identified using LBF model
+5. **Normalization**: Coordinates are normalized relative to face boundaries
+6. **ML Prediction**: Random Forest classifier predicts emotion (0=Happy, 1=Sad)
+7. **Real-time Display**: Emotion is shown in the web interface
+
+## Advanced Usage
+
+### Testing Without Web Interface
+
+Test the model directly with your webcam:
+
+```bash
+python test_model.py
+```
+
+Press `q` to quit the OpenCV window.
+
+### Session Analysis
+
+The session recording feature:
+- Captures emotions every second for 30 seconds
+- Sends the emotion sequence to Google Gemini AI
+- Receives empathetic feedback based on patterns
+- Helps understand emotional fluctuations over time
+
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  All facial data is processed locally and never stored. Session analysis only sends emotion labels (not images) to Gemini AI.
 </Note>
+
+## Next Steps
+
+Now that you have EmoChat running, explore:
+
+- [Core Concepts](/concepts/emotion-recognition) - Learn how emotion recognition works
+- [Training Guide](/training/data-preparation) - Improve your model with better data
+- [API Reference](/api/get-face-landmarks) - Integrate EmoChat into your applications
+- [Web Application](/webapp/flask-server) - Customize the web interface
+
+Ready to dive deeper? Check out the [Installation Guide](/installation) for advanced configuration options.

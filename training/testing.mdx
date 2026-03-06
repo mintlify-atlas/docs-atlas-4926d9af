@@ -1,0 +1,332 @@
+---
+title: 'Testing'
+description: 'Test the trained emotion recognition model in real-time with your webcam'
+icon: 'video'
+---
+
+The testing phase validates your trained model by performing real-time emotion recognition using your computer's webcam.
+
+## Overview
+
+The `test_model.py` script loads your trained model, activates your webcam, extracts facial landmarks from each frame, and displays the predicted emotion on screen.
+
+## Prerequisites
+
+Before testing, ensure you have:
+
+<Check>Completed [Model Training](/training/model-training)</Check>
+<Check>Generated the `model` file with satisfactory accuracy</Check>
+<Check>A working webcam connected to your computer</Check>
+<Check>Good lighting conditions for face detection</Check>
+
+## Running the Test
+
+<Steps>
+  <Step title="Verify model exists">
+    Ensure the trained model file is present:
+    
+    ```bash
+    ls -lh source/model
+    ```
+  </Step>
+  
+  <Step title="Run the test script">
+    Execute the testing script:
+    
+    ```bash
+    cd source
+    python test_model.py
+    ```
+  </Step>
+  
+  <Step title="Position yourself">
+    - Face the camera directly
+    - Ensure good lighting on your face
+    - Stay within normal distance from the camera
+  </Step>
+  
+  <Step title="Test emotions">
+    Try different facial expressions (happy, sad) and observe the predictions in real-time.
+  </Step>
+  
+  <Step title="Exit the test">
+    Press the `q` key to close the webcam window and exit.
+  </Step>
+</Steps>
+
+## How It Works
+
+### Loading the Trained Model
+
+The script loads the model using pickle:
+
+```python
+emotions = ["HAPPY", "SAD"]
+
+model_path = "./model"
+if not os.path.isfile(model_path):
+    raise FileNotFoundError(
+        f"No se encontró el modelo entrenado en '{model_path}'. "
+        f"Ejecuta antes 'train_model.py'."
+    )
+
+with open(model_path, "rb") as f:
+    model = pickle.load(f)
+```
+
+### Webcam Initialization
+
+The webcam is initialized using OpenCV with DirectShow backend:
+
+```python
+cam_index = 0  # Default laptop camera
+cap = cv2.VideoCapture(cam_index, cv2.CAP_DSHOW)
+
+if not cap.isOpened():
+    raise RuntimeError(f"No se pudo abrir la cámara índice {cam_index}.")
+```
+
+<Note>
+`cv2.CAP_DSHOW` is the DirectShow backend for Windows. On Linux/Mac, the default backend is used automatically.
+</Note>
+
+### Real-Time Processing Loop
+
+The main loop captures frames, detects faces, and predicts emotions:
+
+```python
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+    
+    # Extract facial landmarks with drawing enabled
+    face_landmarks = get_face_landmarks(frame, draw=True, static_image_mode=False)
+    
+    if len(face_landmarks) > 0:
+        # Predict emotion
+        output = model.predict([face_landmarks])
+        emotion_text = emotions[int(output[0])] if 0 <= int(output[0]) < len(emotions) else "UNKNOWN"
+        
+        # Display emotion on frame
+        cv2.putText(
+            frame,
+            emotion_text,
+            (10, frame.shape[0] - 10),  # Bottom-left corner
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.2,                         # Font size
+            (0, 255, 0),                 # Green color (BGR)
+            2,                           # Thickness
+        )
+    
+    cv2.imshow("Emotion recognition", frame)
+    
+    # Exit on 'q' key press
+    if cv2.waitKey(25) & 0xFF == ord("q"):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+```
+
+## Understanding the Output
+
+### Visual Elements
+
+1. **Webcam Feed**: Live video from your camera
+2. **Facial Landmarks**: 68 points drawn on detected faces
+3. **Emotion Label**: Text displaying "HAPPY" or "SAD" in the bottom-left corner
+4. **Green Text**: Indicates successful emotion detection
+
+### Prediction Process
+
+<Steps>
+  <Step title="Frame Capture">
+    A frame is captured from the webcam at ~40 FPS (waitKey=25ms).
+  </Step>
+  
+  <Step title="Face Detection">
+    OpenCV detects faces in the frame using the MediaPipe face detection model.
+  </Step>
+  
+  <Step title="Landmark Extraction">
+    68 facial landmark points are extracted and normalized.
+  </Step>
+  
+  <Step title="Prediction">
+    The Random Forest model predicts the emotion (0=HAPPY, 1=SAD).
+  </Step>
+  
+  <Step title="Display">
+    The emotion label is rendered on the frame.
+  </Step>
+</Steps>
+
+## Testing Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Lighting" icon="lightbulb">
+    Test in well-lit conditions similar to your training images.
+  </Card>
+  
+  <Card title="Position" icon="user">
+    Face the camera directly with your full face visible.
+  </Card>
+  
+  <Card title="Distance" icon="arrows-left-right">
+    Maintain a normal distance (0.5-1 meter from camera).
+  </Card>
+  
+  <Card title="Expressions" icon="face-smile">
+    Try exaggerated expressions initially to verify detection.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### "No se encontró el modelo entrenado"
+
+**Problem**: The model file doesn't exist.
+
+**Solution**: Train the model first:
+```bash
+python train_model.py
+```
+
+### "No se pudo abrir la cámara"
+
+**Problem**: Webcam cannot be accessed.
+
+**Solution**:
+- Ensure your webcam is connected and not in use by another application
+- Try a different camera index (0, 1, or 2):
+  ```python
+  cam_index = 1  # Try different indices
+  ```
+- Check camera permissions in your OS settings
+- On Linux, ensure your user has access to `/dev/video0`
+
+<Warning>
+Some applications (Zoom, Skype, Teams) may lock the camera. Close them before testing.
+</Warning>
+
+### No Face Detection
+
+**Problem**: The system doesn't detect your face.
+
+**Solution**:
+- Improve lighting conditions
+- Move closer to the camera
+- Ensure your face is directly facing the camera
+- Remove glasses or face coverings if possible
+- Check that `get_face_landmarks()` is working correctly
+
+### Wrong Predictions
+
+**Problem**: The model consistently predicts the wrong emotion.
+
+**Solution**:
+1. **Retrain with more data**: Add 50-100 more images per emotion
+2. **Verify training accuracy**: Check that training accuracy was >80%
+3. **Check lighting**: Ensure test conditions match training image lighting
+4. **Try exaggerated expressions**: Start with very clear happy/sad expressions
+
+### Inconsistent Predictions
+
+**Problem**: Predictions fluctuate rapidly between emotions.
+
+**Solution**:
+- This is normal for borderline expressions (neutral faces)
+- Try more distinct facial expressions
+- Improve model accuracy by adding more training data
+- Consider implementing prediction smoothing (averaging last N predictions)
+
+### Low Frame Rate
+
+**Problem**: Video is laggy or slow.
+
+**Solution**:
+- Reduce webcam resolution
+- Optimize `get_face_landmarks()` performance
+- Ensure `static_image_mode=False` for faster processing
+- Use a more powerful CPU
+
+### Camera Index Issues (Multiple Cameras)
+
+**Problem**: Wrong camera is being used.
+
+**Solution**: Modify the camera index in the script:
+
+```python
+# Try different camera indices
+cam_index = 0  # Built-in laptop camera
+cam_index = 1  # External USB camera
+cam_index = 2  # Third camera
+```
+
+## Advanced Testing Tips
+
+### Adding Prediction Confidence
+
+Modify the script to show prediction probability:
+
+```python
+if len(face_landmarks) > 0:
+    output = model.predict([face_landmarks])
+    probabilities = model.predict_proba([face_landmarks])[0]
+    
+    emotion_idx = int(output[0])
+    emotion_text = emotions[emotion_idx]
+    confidence = probabilities[emotion_idx] * 100
+    
+    display_text = f"{emotion_text} ({confidence:.1f}%)"
+    cv2.putText(frame, display_text, (10, frame.shape[0] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+```
+
+### Recording Test Sessions
+
+Save test footage for later analysis:
+
+```python
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out = cv2.VideoWriter('test_output.avi', fourcc, 20.0, (640, 480))
+
+# Inside the loop
+out.write(frame)
+
+# After the loop
+out.release()
+```
+
+### Using Different Backends
+
+For Linux/Mac, remove the DirectShow backend:
+
+```python
+cap = cv2.VideoCapture(cam_index)  # Use default backend
+```
+
+## Performance Metrics
+
+Typical performance on modern hardware:
+
+| Metric | Expected Value |
+|--------|----------------|
+| Frame Rate | 30-40 FPS |
+| Detection Latency | &lt;50ms per frame |
+| Prediction Time | &lt;10ms per prediction |
+| CPU Usage | 20-40% (single core) |
+
+## Next Steps
+
+Once you've verified the model works correctly:
+
+1. **Improve Accuracy**: Add more training data if predictions are inconsistent
+2. **Deploy to Web**: Integrate the model into the EmoChat web application
+3. **Add More Emotions**: Expand beyond happy/sad to include anger, surprise, etc.
+4. **Optimize Performance**: Fine-tune model parameters for faster inference
+
+<Info>
+The testing phase validates that your entire training pipeline works correctly before deploying to production.
+</Info>

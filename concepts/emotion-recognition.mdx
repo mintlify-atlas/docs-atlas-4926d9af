@@ -1,0 +1,251 @@
+---
+title: 'Emotion Recognition'
+description: 'Learn how EmoChat detects and analyzes emotions using facial landmark detection with OpenCV'
+icon: 'face-smile'
+---
+
+## Overview
+
+EmoChat uses computer vision techniques to detect and classify human emotions in real-time through facial analysis. The system captures facial expressions from a webcam feed, extracts facial landmarks, normalizes the features, and classifies them into emotion categories.
+
+## How It Works
+
+The emotion recognition pipeline consists of four main stages:
+
+1. **Face Detection** - Detect faces in the video frame
+2. **Landmark Extraction** - Extract 68 facial landmark points
+3. **Feature Normalization** - Normalize coordinates for consistent analysis
+4. **Emotion Classification** - Predict emotion using the trained ML model
+
+## Facial Landmark Detection
+
+### OpenCV Implementation
+
+EmoChat uses OpenCV's face detection and landmark extraction capabilities, specifically:
+
+- **Haar Cascade Classifier** for face detection
+- **LBF (Local Binary Features) Model** for 68-point facial landmark detection
+
+The core implementation is in `utils.py:59`:
+
+```python
+def get_face_landmarks(image, draw: bool = False, static_image_mode: bool = True) -> List[float]:
+    """
+    Extrae landmarks faciales 2D usando únicamente OpenCV (sin Mediapipe).
+    Utiliza un detector Haar + FacemarkLBF (68 puntos): devuelve una lista
+    plana [x1_norm, y1_norm, x2_norm, y2_norm, ...].
+    """
+```
+
+<Note>
+The system automatically downloads the required model files (`haarcascade_frontalface_default.xml` and `lbfmodel.yaml`) from OpenCV's repository if they don't exist locally.
+</Note>
+
+### 68 Facial Points
+
+The LBF model detects 68 specific facial landmark points that capture:
+
+- Jawline contour (17 points)
+- Eyebrow shapes (10 points)
+- Nose bridge and tip (9 points)
+- Eye contours (12 points)
+- Mouth outline (20 points)
+
+These landmarks provide comprehensive facial geometry data for emotion analysis.
+
+## Feature Extraction Process
+
+### Step 1: Face Detection
+
+The Haar Cascade classifier scans the grayscale image to detect faces:
+
+```python
+face_detector, facemark = _get_models()
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+faces = face_detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+```
+
+**Parameters:**
+- `scaleFactor=1.1` - Image pyramid scaling factor
+- `minNeighbors=5` - Minimum neighbors required for face detection (reduces false positives)
+
+### Step 2: Landmark Fitting
+
+Once a face is detected, the LBF model fits 68 landmarks to the facial region:
+
+```python
+ok, landmarks = facemark.fit(gray, faces)
+if not ok or len(landmarks) == 0:
+    return []
+
+# Only use the first detected face
+points = landmarks[0][0]  # shape: (68, 2)
+```
+
+### Step 3: Feature Normalization
+
+Raw landmark coordinates vary based on face position and size. EmoChat normalizes these coordinates to make them position and scale-invariant:
+
+```python
+xs = points[:, 0]
+ys = points[:, 1]
+
+# Calculate bounding box
+min_x, min_y = xs.min(), ys.min()
+max_x, max_y = xs.max(), ys.max()
+
+width = float(max_x - min_x)
+height = float(max_y - min_y)
+
+# Normalize each point to [0, 1] range
+features: List[float] = []
+for (x, y) in zip(xs, ys):
+    features.append(float((x - min_x) / width))
+    features.append(float((y - min_y) / height))
+```
+
+<Info>
+**Why Normalization?** 
+Normalizing coordinates makes the model invariant to:
+- Face size (distance from camera)
+- Face position (location in frame)
+- Image resolution
+
+This ensures consistent predictions regardless of how the user positions themselves.
+</Info>
+
+### Feature Vector Output
+
+The final feature vector contains **136 values** (68 points × 2 coordinates):
+
+```python
+[x1_norm, y1_norm, x2_norm, y2_norm, ..., x68_norm, y68_norm]
+```
+
+Each value is in the range `[0, 1]`, representing normalized positions within the facial bounding box.
+
+## Currently Supported Emotions
+
+EmoChat currently recognizes **2 core emotions**:
+
+<CardGroup cols={2}>
+  <Card title="Happy" icon="face-smile">
+    Detected when facial features show:
+    - Raised cheek muscles
+    - Mouth corners elevated
+    - Crow's feet around eyes
+  </Card>
+  
+  <Card title="Sad" icon="face-frown">
+    Detected when facial features show:
+    - Downturned mouth corners
+    - Lowered eyebrows
+    - Relaxed facial muscles
+  </Card>
+</CardGroup>
+
+<Note>
+The emotion labels are defined in `app.py:19` as:
+```python
+emotions = ["HAPPY", "SAD"]
+```
+The model outputs an integer index (0 or 1) which maps to these labels.
+</Note>
+
+## Real-time Processing
+
+### Webcam Integration
+
+The JavaScript frontend (`main.js`) captures frames from the webcam every **1 second**:
+
+```javascript
+// Start sending frames to backend every 1000ms
+predictionInterval = setInterval(sendFrameForPrediction, 1000);
+```
+
+### Frame Processing Flow
+
+1. **Capture** - JavaScript captures frame from webcam video element
+2. **Encode** - Frame is converted to JPEG and Base64 encoded
+3. **Send** - Data is sent to Flask `/predict` endpoint via HTTP POST
+4. **Decode** - Backend decodes Base64 to image array
+5. **Extract** - `get_face_landmarks()` extracts normalized features
+6. **Predict** - Model classifies the emotion
+7. **Return** - Emotion label is sent back to frontend
+8. **Display** - UI updates with detected emotion
+
+```python
+# Backend processing (app.py:35)
+@app.route('/predict', methods=['POST')
+def predict():
+    # Decode base64 image
+    img_data = data['image'].split(',')[1]
+    nparr = np.frombuffer(base64.b64decode(img_data), np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    # Extract features
+    face_landmarks = get_face_landmarks(frame, draw=False, static_image_mode=True)
+    
+    # Predict emotion
+    if len(face_landmarks) > 0:
+        output = model.predict([face_landmarks])
+        emotion = emotions[int(output[0])]
+        return jsonify({'emotion': emotion})
+```
+
+<Tip>
+**Performance Consideration:** Processing occurs at 1 FPS to balance responsiveness with computational efficiency. This rate provides smooth real-time feedback without overwhelming the CPU.
+</Tip>
+
+## Error Handling
+
+### No Face Detected
+
+When no face is found in the frame:
+
+```python
+faces = face_detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+if len(faces) == 0:
+    return []  # Empty feature vector
+```
+
+The API returns: `{"emotion": "No face detected"}`
+
+### Invalid Input
+
+The function validates image format before processing:
+
+```python
+if image is None or image.ndim != 3 or image.shape[2] != 3:
+    return []  # Requires 3-channel RGB/BGR image
+```
+
+## Visualization (Optional)
+
+For debugging, landmarks can be drawn on the image:
+
+```python
+face_landmarks = get_face_landmarks(frame, draw=True)
+```
+
+This draws green circles at each of the 68 landmark positions:
+
+```python
+if draw:
+    for (x, y) in points:
+        cv2.circle(image, (int(x), int(y)), 1, (0, 255, 0), -1)
+```
+
+This feature is used in `test_model.py` for real-time visualization during development.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="ML Model" icon="brain" href="/concepts/ml-model">
+    Learn how the Random Forest classifier is trained and makes predictions
+  </Card>
+  
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    Understand the complete system architecture and data flow
+  </Card>
+</CardGroup>
