@@ -275,7 +275,11 @@ if (isRecordingSession && emotionKey !== 'no face detected') {
 }
 ```
 
-This creates an array like: `["Tristeza", "Tristeza", "Alegría", "Tristeza", ...]`
+<Note>
+Currently, the backend only returns "HAPPY" or "SAD" emotions. The mapping includes `angry` and `surprised` for future extensibility, but these emotions are not yet supported by the trained model.
+</Note>
+
+This creates an array like: `["Tristeza", "Alegría", "Tristeza", ...]` (currently limited to Happy/Sad emotions)
 
 ### Analyzing the Session
 
